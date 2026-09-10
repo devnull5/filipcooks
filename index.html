@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Filip Cooks - AI Inspired Recipes</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: #0f0f0f;
+      color: #e0e0e0;
+      line-height: 1.6;
+    }
+
+    header {
+      background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%);
+      padding: 3rem 2rem;
+      text-align: center;
+      border-bottom: 2px solid #ff6b6b;
+    }
+
+    header h1 {
+      font-size: 2.5rem;
+      margin-bottom: 0.5rem;
+      color: #ff6b6b;
+    }
+
+    header p {
+      font-size: 1.1rem;
+      color: #a0a0a0;
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 2rem;
+    }
+
+    .filters {
+      margin-bottom: 2rem;
+      display: flex;
+      gap: 1rem;
+      flex-wrap: wrap;
+    }
+
+    .filters button {
+      padding: 0.75rem 1.5rem;
+      background: #1a1a1a;
+      border: 2px solid #ff6b6b;
+      color: #e0e0e0;
+      cursor: pointer;
+      border-radius: 4px;
+      transition: all 0.3s;
+      font-weight: bold;
+    }
+
+    .filters button:hover,
+    .filters button.active {
+      background: #ff6b6b;
+      color: #0f0f0f;
+    }
+
+    .recipe-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+      gap: 2rem;
+      margin-bottom: 3rem;
+    }
+
+    .recipe-card {
+      background: #1a1a1a;
+      border: 1px solid #333;
+      border-radius: 8px;
+      padding: 1.5rem;
+      transition: all 0.3s;
+      cursor: pointer;
+    }
+
+    .recipe-card:hover {
+      border-color: #ff6b6b;
+      transform: translateY(-5px);
+      box-shadow: 0 5px 20px rgba(255, 107, 107, 0.2);
+    }
+
+    .recipe-card h3 {
+      color: #ff6b6b;
+      margin-bottom: 0.5rem;
+    }
+
+    .recipe-card .cuisine {
+      display: inline-block;
+      background: #ff6b6b;
+      color: #0f0f0f;
+      padding: 0.25rem 0.75rem;
+      border-radius: 20px;
+      font-size: 0.85rem;
+      margin-bottom: 1rem;
+      font-weight: bold;
+    }
+
+    .recipe-card p {
+      color: #a0a0a0;
+      margin-bottom: 1rem;
+      min-height: 2.4rem;
+    }
+
+    .rating {
+      display: flex;
+      gap: 0.5rem;
+      align-items: center;
+    }
+
+    .stars {
+      color: #ffd700;
+      font-size: 1rem;
+    }
+
+    .rating-count {
+      color: #707070;
+      font-size: 0.9rem;
+    }
+
+    footer {
+      background: #0a0a0a;
+      padding: 2rem;
+      text-align: center;
+      border-top: 2px solid #ff6b6b;
+      margin-top: 3rem;
+      color: #707070;
+    }
+
+    .loading {
+      text-align: center;
+      padding: 2rem;
+      color: #ff6b6b;
+    }
+
+    .error {
+      background: #ff6b6b;
+      color: #0f0f0f;
+      padding: 1rem;
+      border-radius: 4px;
+      margin-bottom: 1rem;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Filip Cooks</h1>
+    <p>AI-Inspired Recipes & Culinary Experiments</p>
+  </header>
+
+  <div class="container">
+    <div class="filters" id="cuisineFilters"></div>
+    <div id="recipeGrid" class="recipe-grid">
+      <div class="loading">Loading recipes...</div>
+    </div>
+  </div>
+
+  <footer>
+    <p>&copy; 2024 Filip Cooks. All recipes AI-inspired and tested in the kitchen.</p>
+  </footer>
+
+  <script>
+    // Initialize Supabase
+    const SUPABASE_URL = 'https://zxgnupoprrhhwyufcjkk.supabase.co';
+    const SUPABASE_KEY = 'sb_publishable_dzQJAqsFrcHiSHYd48hVcQ_xVJ2DTfF';
+    let supabase;
+
+    // Wait for Supabase to load
+    if (window.supabase) {
+      supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+    } else {
+      document.addEventListener('DOMContentLoaded', () => {
+        supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+      });
+    }
+
+    let allRecipes = [];
+    let allCuisines = [];
+    let selectedCuisine = 'All';
+
+    async function loadRecipes() {
+      try {
+        const { data, error } = await supabase
+          .from('recipes')
+          .select('*')
+          .order('created_at', { ascending: false });
+
+        if (error) throw error;
+
+        allRecipes = data || [];
+        allCuisines = ['All', ...new Set(allRecipes.map(r => r.cuisine))];
+
+        // Load ratings for each recipe
+        for (let recipe of allRecipes) {
+          const { data: ratings } = await supabase
+            .from('ratings')
+            .select('rating')
+            .eq('recipe_id', recipe.id);
+
+          recipe.ratings = ratings || [];
+          recipe.avgRating = recipe.ratings.length > 0
+            ? (recipe.ratings.reduce((sum, r) => sum + r.rating, 0) / recipe.ratings.length).toFixed(1)
+            : 0;
+        }
+
+        renderFilters();
+        renderRecipes();
+      } catch (err) {
+        console.error('Error loading recipes:', err);
+        document.getElementById('recipeGrid').innerHTML = '<div class="error">Error loading recipes</div>';
+      }
+    }
+
+    function renderFilters() {
+      const filterContainer = document.getElementById('cuisineFilters');
+      filterContainer.innerHTML = allCuisines.map(cuisine => `
+        <button class="${cuisine === selectedCuisine ? 'active' : ''}" onclick="filterByCuisine('${cuisine}')">
+          ${cuisine}
+        </button>
+      `).join('');
+    }
+
+    function filterByCuisine(cuisine) {
+      selectedCuisine = cuisine;
+      renderFilters();
+      renderRecipes();
+    }
+
+    function renderRecipes() {
+      const filtered = selectedCuisine === 'All'
+        ? allRecipes
+        : allRecipes.filter(r => r.cuisine === selectedCuisine);
+
+      if (filtered.length === 0) {
+        document.getElementById('recipeGrid').innerHTML = '<div class="loading">No recipes in this category yet.</div>';
+        return;
+      }
+
+      document.getElementById('recipeGrid').innerHTML = filtered.map(recipe => `
+        <div class="recipe-card" onclick="goToRecipe(${recipe.id})">
+          <h3>${recipe.name}</h3>
+          <span class="cuisine">${recipe.cuisine}</span>
+          <p>${recipe.description || 'No description yet.'}</p>
+          <div class="rating">
+            <span class="stars">${recipe.avgRating > 0 ? '★'.repeat(Math.round(recipe.avgRating)) + '☆'.repeat(5 - Math.round(recipe.avgRating)) : 'No ratings'}</span>
+            <span class="rating-count">(${recipe.ratings.length})</span>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function goToRecipe(recipeId) {
+      window.location.href = `recipe.html?id=${recipeId}`;
+    }
+
+    // Load recipes once Supabase is ready
+    function initializeApp() {
+      if (window.supabase) {
+        supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+        loadRecipes();
+      } else {
+        setTimeout(initializeApp, 100);
+      }
+    }
+
+    initializeApp();
+  </script>
+</body>
+</html>
