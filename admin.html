@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin - Filip Cooks</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: #0f0f0f;
+      color: #e0e0e0;
+      line-height: 1.6;
+    }
+
+    header {
+      background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%);
+      padding: 2rem;
+      text-align: center;
+      border-bottom: 2px solid #ff6b6b;
+    }
+
+    header h1 {
+      color: #ff6b6b;
+    }
+
+    .container {
+      max-width: 600px;
+      margin: 0 auto;
+      padding: 2rem;
+    }
+
+    .form-group {
+      margin-bottom: 1.5rem;
+    }
+
+    label {
+      display: block;
+      margin-bottom: 0.5rem;
+      color: #ff6b6b;
+      font-weight: bold;
+    }
+
+    input,
+    textarea,
+    select {
+      width: 100%;
+      padding: 0.75rem;
+      background: #1a1a1a;
+      border: 1px solid #333;
+      border-radius: 4px;
+      color: #e0e0e0;
+      font-family: inherit;
+    }
+
+    input:focus,
+    textarea:focus,
+    select:focus {
+      outline: none;
+      border-color: #ff6b6b;
+      box-shadow: 0 0 5px rgba(255, 107, 107, 0.3);
+    }
+
+    textarea {
+      resize: vertical;
+      min-height: 100px;
+    }
+
+    button {
+      background: #ff6b6b;
+      color: #0f0f0f;
+      padding: 0.75rem 2rem;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-weight: bold;
+      font-size: 1rem;
+      transition: all 0.3s;
+    }
+
+    button:hover {
+      background: #ff5252;
+    }
+
+    button:disabled {
+      background: #707070;
+      cursor: not-allowed;
+    }
+
+    .success {
+      background: #4caf50;
+      color: white;
+      padding: 1rem;
+      border-radius: 4px;
+      margin-bottom: 1rem;
+      display: none;
+    }
+
+    .error {
+      background: #ff6b6b;
+      color: #0f0f0f;
+      padding: 1rem;
+      border-radius: 4px;
+      margin-bottom: 1rem;
+      display: none;
+    }
+
+    .instructions {
+      background: #1a1a1a;
+      border: 1px solid #333;
+      border-radius: 8px;
+      padding: 1.5rem;
+      margin-bottom: 2rem;
+      color: #a0a0a0;
+    }
+
+    .instructions h2 {
+      color: #ff6b6b;
+      margin-bottom: 1rem;
+    }
+
+    .instructions p {
+      margin-bottom: 0.5rem;
+      font-size: 0.9rem;
+    }
+
+    .form-section {
+      background: #1a1a1a;
+      border: 1px solid #333;
+      border-radius: 8px;
+      padding: 1.5rem;
+    }
+
+    .form-section h2 {
+      color: #ff6b6b;
+      margin-bottom: 1.5rem;
+    }
+
+    footer {
+      background: #0a0a0a;
+      padding: 2rem;
+      text-align: center;
+      border-top: 2px solid #ff6b6b;
+      margin-top: 3rem;
+      color: #707070;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Filip Cooks - Add Recipe</h1>
+    <p><a href="index.html" style="color: #ff6b6b; text-decoration: none;">← View Site</a></p>
+  </header>
+
+  <div class="container">
+    <div class="instructions">
+      <h2>How to Add Recipes</h2>
+      <p>1. Fill out the form below with your recipe details</p>
+      <p>2. Ingredients & instructions should be one per line</p>
+      <p>3. Click "Add Recipe" to save to Supabase</p>
+      <p>4. Recipe will appear on the site immediately</p>
+    </div>
+
+    <div class="success" id="successMessage">Recipe added successfully!</div>
+    <div class="error" id="errorMessage"></div>
+
+    <form class="form-section" onsubmit="addRecipe(event)">
+      <h2>Recipe Details</h2>
+
+      <div class="form-group">
+        <label for="name">Recipe Name *</label>
+        <input type="text" id="name" name="name" required>
+      </div>
+
+      <div class="form-group">
+        <label for="cuisine">Cuisine Type *</label>
+        <select id="cuisine" name="cuisine" required>
+          <option value="">Select a cuisine...</option>
+          <option value="Italian">Italian</option>
+          <option value="Mexican">Mexican</option>
+          <option value="Asian">Asian</option>
+          <option value="American">American</option>
+          <option value="Mediterranean">Mediterranean</option>
+          <option value="Indian">Indian</option>
+          <option value="French">French</option>
+          <option value="Other">Other</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label for="description">Description</label>
+        <textarea id="description" name="description" placeholder="Brief description of the recipe..."></textarea>
+      </div>
+
+      <div class="form-group">
+        <label for="ingredients">Ingredients * (one per line)</label>
+        <textarea id="ingredients" name="ingredients" required placeholder="1 lb ground beef&#10;1 lb sweet sausage&#10;1 cup heavy cream..."></textarea>
+      </div>
+
+      <div class="form-group">
+        <label for="instructions">Instructions * (one per line)</label>
+        <textarea id="instructions" name="instructions" required placeholder="Brown the beef in a large pan&#10;Add tomatoes and simmer for 20 minutes&#10;Stir in cream and finish..."></textarea>
+      </div>
+
+      <button type="submit" id="submitBtn">Add Recipe</button>
+    </form>
+  </div>
+
+  <footer>
+    <p>&copy; 2024 Filip Cooks. All recipes AI-inspired and tested in the kitchen.</p>
+  </footer>
+
+  <script>
+    const SUPABASE_URL = 'https://zxgnupoprrhhwyufcjkk.supabase.co';
+    const SUPABASE_KEY = 'sb_publishable_dzQJAqsFrcHiSHYd48hVcQ_xVJ2DTfF';
+    let supabase;
+
+    function initializeSupabase() {
+      if (!window.supabase) {
+        setTimeout(initializeSupabase, 100);
+        return;
+      }
+      supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+    }
+
+    initializeSupabase();
+
+    async function addRecipe(event) {
+      event.preventDefault();
+
+      const name = document.getElementById('name').value.trim();
+      const cuisine = document.getElementById('cuisine').value.trim();
+      const description = document.getElementById('description').value.trim();
+      const ingredients = document.getElementById('ingredients').value.trim();
+      const instructions = document.getElementById('instructions').value.trim();
+
+      const errorDiv = document.getElementById('errorMessage');
+      const successDiv = document.getElementById('successMessage');
+
+      errorDiv.style.display = 'none';
+      successDiv.style.display = 'none';
+
+      if (!name || !cuisine || !ingredients || !instructions) {
+        errorDiv.textContent = 'Please fill in all required fields';
+        errorDiv.style.display = 'block';
+        return;
+      }
+
+      try {
+        const { data, error } = await supabase
+          .from('recipes')
+          .insert([
+            {
+              name: name,
+              cuisine: cuisine,
+              description: description,
+              ingredients: ingredients,
+              instructions: instructions
+            }
+          ])
+          .select();
+
+        if (error) throw error;
+
+        successDiv.style.display = 'block';
+        document.querySelector('form').reset();
+
+        setTimeout(() => {
+          successDiv.style.display = 'none';
+        }, 3000);
+      } catch (err) {
+        console.error('Error adding recipe:', err);
+        errorDiv.textContent = 'Error adding recipe: ' + err.message;
+        errorDiv.style.display = 'block';
+      }
+    }
+  </script>
+</body>
+</html>
