@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Recipe - Filip Cooks</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: #0f0f0f;
+      color: #e0e0e0;
+      line-height: 1.6;
+    }
+
+    header {
+      background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%);
+      padding: 2rem;
+      border-bottom: 2px solid #ff6b6b;
+    }
+
+    .back-link {
+      color: #ff6b6b;
+      text-decoration: none;
+      cursor: pointer;
+      margin-bottom: 1rem;
+      display: inline-block;
+    }
+
+    .back-link:hover {
+      text-decoration: underline;
+    }
+
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 2rem;
+    }
+
+    .recipe-header {
+      margin-bottom: 2rem;
+    }
+
+    .recipe-header h1 {
+      font-size: 2rem;
+      color: #ff6b6b;
+      margin-bottom: 0.5rem;
+    }
+
+    .cuisine-badge {
+      display: inline-block;
+      background: #ff6b6b;
+      color: #0f0f0f;
+      padding: 0.5rem 1rem;
+      border-radius: 20px;
+      font-weight: bold;
+      font-size: 0.9rem;
+      margin-bottom: 1rem;
+    }
+
+    .description {
+      color: #a0a0a0;
+      margin-bottom: 2rem;
+      font-size: 1.1rem;
+    }
+
+    .section {
+      background: #1a1a1a;
+      border: 1px solid #333;
+      border-radius: 8px;
+      padding: 1.5rem;
+      margin-bottom: 2rem;
+    }
+
+    .section h2 {
+      color: #ff6b6b;
+      margin-bottom: 1rem;
+      font-size: 1.3rem;
+    }
+
+    .ingredients-list {
+      list-style: none;
+    }
+
+    .ingredients-list li {
+      padding: 0.5rem 0;
+      border-bottom: 1px solid #333;
+    }
+
+    .ingredients-list li:last-child {
+      border-bottom: none;
+    }
+
+    .ingredients-list li:before {
+      content: "• ";
+      color: #ff6b6b;
+      margin-right: 0.5rem;
+    }
+
+    .instructions-list {
+      list-style: none;
+      counter-reset: step-counter;
+    }
+
+    .instructions-list li {
+      padding: 1rem 0 1rem 3rem;
+      position: relative;
+      border-bottom: 1px solid #333;
+    }
+
+    .instructions-list li:last-child {
+      border-bottom: none;
+    }
+
+    .instructions-list li:before {
+      content: counter(step-counter);
+      counter-increment: step-counter;
+      position: absolute;
+      left: 0;
+      top: 1rem;
+      background: #ff6b6b;
+      color: #0f0f0f;
+      width: 2rem;
+      height: 2rem;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: bold;
+    }
+
+    .rating-section {
+      background: #1a1a1a;
+      border: 1px solid #333;
+      border-radius: 8px;
+      padding: 1.5rem;
+      margin-bottom: 2rem;
+    }
+
+    .rating-section h2 {
+      color: #ff6b6b;
+      margin-bottom: 1rem;
+    }
+
+    .current-rating {
+      margin-bottom: 1.5rem;
+    }
+
+    .stars-display {
+      font-size: 1.5rem;
+      color: #ffd700;
+      margin-bottom: 0.5rem;
+    }
+
+    .rating-count {
+      color: #707070;
+      font-size: 0.9rem;
+    }
+
+    .rating-form {
+      display: flex;
+      gap: 1rem;
+      align-items: center;
+      margin-top: 1rem;
+    }
+
+    .star-input {
+      display: flex;
+      gap: 0.5rem;
+      font-size: 2rem;
+      cursor: pointer;
+    }
+
+    .star {
+      cursor: pointer;
+      color: #444;
+      transition: color 0.2s;
+    }
+
+    .star:hover,
+    .star.active {
+      color: #ffd700;
+    }
+
+    .submit-btn {
+      background: #ff6b6b;
+      color: #0f0f0f;
+      border: none;
+      padding: 0.75rem 1.5rem;
+      border-radius: 4px;
+      cursor: pointer;
+      font-weight: bold;
+      transition: all 0.3s;
+    }
+
+    .submit-btn:hover {
+      background: #ff5252;
+    }
+
+    .submit-btn:disabled {
+      background: #707070;
+      cursor: not-allowed;
+    }
+
+    .success-message {
+      background: #4caf50;
+      color: white;
+      padding: 1rem;
+      border-radius: 4px;
+      margin-top: 1rem;
+      display: none;
+    }
+
+    .error {
+      background: #ff6b6b;
+      color: #0f0f0f;
+      padding: 1rem;
+      border-radius: 4px;
+      margin-bottom: 1rem;
+    }
+
+    .loading {
+      text-align: center;
+      padding: 2rem;
+      color: #ff6b6b;
+    }
+
+    footer {
+      background: #0a0a0a;
+      padding: 2rem;
+      text-align: center;
+      border-top: 2px solid #ff6b6b;
+      margin-top: 3rem;
+      color: #707070;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a class="back-link" onclick="window.location.href='index.html'">← Back to Recipes</a>
+    </div>
+  </header>
+
+  <div class="container">
+    <div id="content">
+      <div class="loading">Loading recipe...</div>
+    </div>
+  </div>
+
+  <footer>
+    <p>&copy; 2024 Filip Cooks. All recipes AI-inspired and tested in the kitchen.</p>
+  </footer>
+
+  <script>
+    const SUPABASE_URL = 'https://zxgnupoprrhhwyufcjkk.supabase.co';
+    const SUPABASE_KEY = 'sb_publishable_dzQJAqsFrcHiSHYd48hVcQ_xVJ2DTfF';
+    let supabase;
+
+    let currentRecipe = null;
+    let selectedRating = 0;
+
+    function initializeAndLoad() {
+      if (!window.supabase) {
+        setTimeout(initializeAndLoad, 100);
+        return;
+      }
+      supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+      loadRecipe();
+    }
+
+    async function loadRecipe() {
+      try {
+        const params = new URLSearchParams(window.location.search);
+        const recipeId = params.get('id');
+
+        if (!recipeId) {
+          throw new Error('No recipe ID provided');
+        }
+
+        const { data: recipe, error } = await supabase
+          .from('recipes')
+          .select('*')
+          .eq('id', recipeId)
+          .single();
+
+        if (error) throw error;
+
+        currentRecipe = recipe;
+
+        // Load ratings
+        const { data: ratings } = await supabase
+          .from('ratings')
+          .select('rating')
+          .eq('recipe_id', recipeId);
+
+        currentRecipe.ratings = ratings || [];
+        currentRecipe.avgRating = currentRecipe.ratings.length > 0
+          ? (currentRecipe.ratings.reduce((sum, r) => sum + r.rating, 0) / currentRecipe.ratings.length).toFixed(1)
+          : 0;
+
+        renderRecipe();
+      } catch (err) {
+        console.error('Error loading recipe:', err);
+        document.getElementById('content').innerHTML = '<div class="error">Error loading recipe</div>';
+      }
+    }
+
+    function renderRecipe() {
+      const ingredients = currentRecipe.ingredients.split('\n').filter(i => i.trim());
+      const instructions = currentRecipe.instructions.split('\n').filter(i => i.trim());
+
+      const starsDisplay = currentRecipe.avgRating > 0
+        ? '★'.repeat(Math.round(currentRecipe.avgRating)) + '☆'.repeat(5 - Math.round(currentRecipe.avgRating))
+        : 'No ratings yet';
+
+      document.getElementById('content').innerHTML = `
+        <div class="recipe-header">
+          <h1>${currentRecipe.name}</h1>
+          <span class="cuisine-badge">${currentRecipe.cuisine}</span>
+          <p class="description">${currentRecipe.description || 'No description available.'}</p>
+        </div>
+
+        <div class="section">
+          <h2>Ingredients</h2>
+          <ul class="ingredients-list">
+            ${ingredients.map(ing => `<li>${ing}</li>`).join('')}
+          </ul>
+        </div>
+
+        <div class="section">
+          <h2>Instructions</h2>
+          <ol class="instructions-list">
+            ${instructions.map(inst => `<li>${inst}</li>`).join('')}
+          </ol>
+        </div>
+
+        <div class="rating-section">
+          <h2>Rate This Recipe</h2>
+          <div class="current-rating">
+            <div class="stars-display">${starsDisplay}</div>
+            <div class="rating-count">${currentRecipe.ratings.length} rating${currentRecipe.ratings.length !== 1 ? 's' : ''}</div>
+          </div>
+
+          <div class="rating-form">
+            <div class="star-input" id="starInput">
+              ${[1, 2, 3, 4, 5].map(i => `<span class="star" onclick="selectRating(${i})" data-rating="${i}">★</span>`).join('')}
+            </div>
+            <button class="submit-btn" onclick="submitRating()" id="submitBtn" disabled>Submit</button>
+          </div>
+          <div class="success-message" id="successMessage">Rating submitted! Thanks for your feedback.</div>
+        </div>
+      `;
+    }
+
+    function selectRating(rating) {
+      selectedRating = rating;
+      document.querySelectorAll('.star').forEach((star, index) => {
+        if (index < rating) {
+          star.classList.add('active');
+        } else {
+          star.classList.remove('active');
+        }
+      });
+      document.getElementById('submitBtn').disabled = false;
+    }
+
+    async function submitRating() {
+      if (selectedRating === 0) return;
+
+      try {
+        const { error } = await supabase
+          .from('ratings')
+          .insert([
+            {
+              recipe_id: currentRecipe.id,
+              rating: selectedRating
+            }
+          ]);
+
+        if (error) throw error;
+
+        // Show success message
+        document.getElementById('successMessage').style.display = 'block';
+        document.getElementById('submitBtn').disabled = true;
+
+        // Reload ratings
+        setTimeout(() => {
+          loadRecipe();
+        }, 1500);
+      } catch (err) {
+        console.error('Error submitting rating:', err);
+        alert('Error submitting rating. Please try again.');
+      }
+    }
+
+    // Load recipe once Supabase is ready
+    initializeAndLoad();
+  </script>
+</body>
+</html>
