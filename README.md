@@ -13,12 +13,13 @@ admin.html            post/edit/publish recipes (admins only)
 404.html              GitHub Pages fallback
 CNAME                 custom domain for GitHub Pages
 assets/css/style.css  all styling, light + dark
-assets/js/config.js   your Supabase URL + anon key  ← you fill this in
+assets/js/config.js   Supabase URL + publishable key (public; committed on purpose)
 assets/js/app.js      shared client, auth, header, helpers
 assets/js/home.js     index.html behaviour
 assets/js/recipe.js   recipe.html behaviour
 assets/js/admin.js    admin.html behaviour
 supabase/schema.sql   tables, triggers, RLS, storage — run this once
+supabase/00-reset-stale-recipes.sql  only if a foreign `recipes` table is in the way
 supabase/make-me-admin.sql   flips your own is_admin flag
 ```
 
@@ -51,13 +52,20 @@ A few details worth knowing:
 
 1. Create a project at [supabase.com/dashboard](https://supabase.com/dashboard).
 2. **SQL Editor → New query** → paste all of `supabase/schema.sql` → **Run**.
-   This creates the tables, triggers, policies and the `recipe-images` bucket.
-3. **Project Settings → Data API** → copy the **Project URL** and the
-   **anon public** key into `assets/js/config.js`.
 
-> The anon key belongs in the repo — it's a public client key, and RLS is what
-> actually protects the data. The **`service_role`** key is the dangerous one;
-> it isn't used anywhere in this site and must never be committed.
+   > If it stops with *"A different public.recipes table already exists"*, this
+   > instance has a leftover `recipes` table from something else. Read
+   > `supabase/00-reset-stale-recipes.sql`, deal with that table, then re-run.
+
+   This creates the tables, triggers, policies and the `recipe-images` bucket.
+3. **Project Settings → API Keys** → copy the **Project URL** and the
+   **publishable** key (`sb_publishable_...`; older projects call this the
+   **anon public** key) into `assets/js/config.js`.
+
+> That key belongs in the repo — it's a public client key, and RLS is what
+> actually protects the data. The dangerous one is `sb_secret_...` (formerly
+> `service_role`); it isn't used anywhere in this site and must never be
+> committed.
 
 ### 2. Google sign-in
 

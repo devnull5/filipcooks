@@ -5,6 +5,29 @@
 -- =====================================================================
 
 -- ---------------------------------------------------------------------
+-- 0. PREFLIGHT
+--
+-- The table definitions below use `create table if not exists`, which means
+-- an UNRELATED public.recipes table would be silently left in place and then
+-- every trigger and policy after it would fail on missing columns. Catch that
+-- here with one clear message instead.
+-- ---------------------------------------------------------------------
+
+do $$
+begin
+  if exists (
+    select 1 from information_schema.tables
+     where table_schema = 'public' and table_name = 'recipes'
+  ) and not exists (
+    select 1 from information_schema.columns
+     where table_schema = 'public' and table_name = 'recipes' and column_name = 'slug'
+  ) then
+    raise exception
+      'A different public.recipes table already exists (it has no "slug" column). Run supabase/00-reset-stale-recipes.sql first, or rename that table out of the way.';
+  end if;
+end $$;
+
+-- ---------------------------------------------------------------------
 -- 1. TABLES
 -- ---------------------------------------------------------------------
 
