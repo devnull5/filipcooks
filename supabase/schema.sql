@@ -200,9 +200,30 @@ alter table public.recipes  enable row level security;
 alter table public.reviews  enable row level security;
 
 -- Nobody may promote themselves to admin, or fiddle with the counters that
--- the trigger owns. Column-level grants sit *on top of* the RLS policies.
-revoke update (is_admin, id, created_at) on public.profiles from anon, authenticated;
-revoke update (review_count, rating_sum) on public.recipes  from anon, authenticated;
+-- the trigger owns.
+--
+-- This MUST be done as "revoke the table-wide grant, then grant back only
+-- the safe columns". A bare `revoke update (col) ...` does NOT work: in
+-- PostgreSQL a column-level revoke cannot subtract from a table-level grant,
+-- and Supabase grants table-wide privileges to anon/authenticated on project
+-- creation. The column list would be silently ignored and `is_admin` would
+-- stay writable — which, combined with the "users update own profile" policy
+-- below, is a straight path to self-promotion.
+--
+-- SECURITY DEFINER functions (handle_new_user, sync_recipe_rating) run as
+-- their owner and are unaffected by these grants, which is why the trigger
+-- can still maintain the counters.
+
+revoke update on public.profiles from anon, authenticated;
+grant  update (display_name, avatar_url) on public.profiles to authenticated;
+
+revoke update on public.recipes from anon, authenticated;
+grant  update (
+         slug, title, blurb, hero_url, category,
+         ingredients, steps,
+         prep_minutes, cook_minutes, servings,
+         published, author_id
+       ) on public.recipes to authenticated;
 
 -- profiles ------------------------------------------------------------
 drop policy if exists "profiles are public" on public.profiles;

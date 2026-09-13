@@ -19,6 +19,7 @@ assets/js/home.js     index.html behaviour
 assets/js/recipe.js   recipe.html behaviour
 assets/js/admin.js    admin.html behaviour
 supabase/setup-all.sql  ONE-SHOT: stale-table rename + full schema. Start here.
+supabase/01-fix-column-grants.sql  security patch for instances set up before 2026-09-13
 supabase/schema.sql   tables, triggers, RLS, storage (the schema on its own)
 supabase/00-reset-stale-recipes.sql  only if a foreign `recipes` table is in the way
 supabase/make-me-admin.sql   flips your own is_admin flag
@@ -42,9 +43,16 @@ A few details worth knowing:
   `recipes.rating_sum` current, so the grid shows averages without an aggregate
   query per card. Those two columns are revoked from clients — only the trigger
   writes them.
-- **Nobody can promote themselves.** `profiles.is_admin` is revoked from the
-  `anon` and `authenticated` roles at the column level, so even a crafted request
-  can't set it. You flip it by hand in SQL.
+- **Nobody can promote themselves.** `public.profiles` has its table-wide
+  UPDATE grant revoked, with UPDATE granted back on only `display_name` and
+  `avatar_url`. `is_admin` is therefore unwritable by any client request; you
+  flip it by hand in SQL.
+
+  This has to be done as *revoke-table-then-grant-columns*. A bare
+  `revoke update (is_admin) on profiles` silently does nothing, because a
+  column-level revoke cannot subtract from a table-level grant and Supabase
+  grants table-wide privileges by default. Getting this wrong leaves a
+  one-request path from "signed-in visitor" to "admin".
 - **Reviews only attach to published recipes**, checked inside the insert policy.
 
 ## Setup
