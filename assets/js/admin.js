@@ -103,6 +103,7 @@ function shell() {
           <label for="f-ingredients">Ingredients — one per line</label>
           <textarea id="f-ingredients" style="min-height:9rem"
             placeholder="500g beef mince&#10;2 tbsp olive oil&#10;1 onion, finely diced"></textarea>
+          <div class="field-hint">Start each line with its amount (2, ½, 1 1/2, 0.5) so visitors can scale the recipe. Amounts elsewhere in the line aren't scaled.</div>
         </div>
 
         <div class="field">

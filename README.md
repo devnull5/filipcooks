@@ -19,6 +19,7 @@ assets/js/config.js   Supabase URL + publishable key (public; committed on purpo
 assets/js/app.js      shared client, auth, header, helpers
 assets/js/home.js     index.html behaviour
 assets/js/recipe.js   recipe.html behaviour
+assets/js/scale.js    ingredient scaling (¼× ½× 1× 2× 3×)
 assets/js/admin.js    admin.html behaviour
 supabase/setup-all.sql  ONE-SHOT: stale-table rename + full schema. Start here.
 supabase/01-fix-column-grants.sql  security patch for instances set up before 2026-09-13
@@ -152,6 +153,25 @@ python -m http.server 5173
 
 Then open <http://localhost:5173>. Add `http://localhost:5173/**` to the Supabase
 redirect URLs (step 2 above) if you want Google sign-in to work locally.
+
+## Scaling
+
+Recipe pages have a ¼× / ½× / 1× / 2× / 3× control above the ingredients. It
+rewrites the amount at the **start** of each ingredient line and the "Serves"
+figure, and records the choice in the URL (`&x=2`) so a scaled recipe can be
+shared.
+
+- Understands `2`, `0.5`, `1/2`, `1 1/2`, `1½`, `½`, and ranges like `2-3` or
+  `2 to 3`. Output uses kitchen fractions (`¾`, `1⅓`), falling back to a
+  decimal when the result isn't a sensible fraction.
+- Decimals that look like rounded thirds (`0.3`, `0.33`, `0.67`) are treated as
+  thirds, so `0.3 cups` doubled reads `⅔ cup`, not `0.6 cups`.
+- Units agree with the new amount: `1 cups` halved becomes `½ cup`,
+  `1 dash` doubled becomes `2 dashes`.
+- Numbers later in a line are never touched — `(for 9x12 pan)` stays put — and
+  at 1× every line is shown exactly as written.
+- The method is **not** rescaled: its numbers are mixed in with times,
+  temperatures and pan sizes. A note says so whenever the recipe is scaled.
 
 ## Posting a recipe
 

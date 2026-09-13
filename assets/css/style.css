@@ -452,6 +452,51 @@ label { display: block; font-size: .85rem; font-weight: 600; color: var(--ink-so
   margin-bottom: 1.1rem;
 }
 
+.ingredients-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: .5rem .75rem;
+  flex-wrap: wrap;
+}
+
+/* Segmented ¼× ½× 1× 2× 3× control */
+.scale-group {
+  display: inline-flex;
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  overflow: hidden;
+  background: var(--surface);
+  margin-bottom: 1.1rem;
+}
+.scale-btn {
+  font: inherit;
+  font-size: .82rem;
+  font-weight: 600;
+  min-width: 2.5rem;
+  padding: .34rem .6rem;
+  border: 0;
+  background: transparent;
+  color: var(--ink-soft);
+  cursor: pointer;
+  transition: background .15s, color .15s;
+}
+.scale-btn + .scale-btn { border-left: 1px solid var(--border); }
+.scale-btn:hover { background: var(--surface-alt); color: var(--ink); }
+.scale-btn[aria-pressed="true"] { background: var(--ember); color: var(--btn-solid-fg); }
+.scale-btn:focus-visible { outline-offset: -3px; }
+
+.scale-note {
+  font-size: .84rem;
+  line-height: 1.5;
+  color: var(--ink-soft);
+  background: var(--ember-wash);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: .55rem .75rem;
+  margin: 0 0 .9rem;
+}
+
 .ingredients { list-style: none; padding: 0; margin: 0; }
 .ingredients li {
   padding: .55rem 0 .55rem 1.6rem;

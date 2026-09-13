@@ -4,11 +4,18 @@ import {
   sb, configured, $, esc, avgRating, starsHTML, totalTime, fmtDate,
   renderHeader, renderSetupNotice, getProfile, renderGoogleButton, toast,
 } from './app.js';
+import { scaleIngredient, formatQuantity, SCALE_OPTIONS } from './scale.js';
 
 const root = $('#recipe-root');
 $('#year').textContent = new Date().getFullYear();
 
-const slug = new URLSearchParams(location.search).get('r');
+const params = new URLSearchParams(location.search);
+const slug = params.get('r');
+
+// ?x=2 makes a scaled recipe shareable; anything unrecognised means 1x.
+let scaleFactor = SCALE_OPTIONS.some((o) => o.factor === Number(params.get('x')))
+  ? Number(params.get('x'))
+  : 1;
 
 let recipe = null;
 let reviews = [];
@@ -43,7 +50,7 @@ function recipeHTML() {
   if (recipe.prep_minutes) facts.push(['Prep', `${recipe.prep_minutes} min`]);
   if (recipe.cook_minutes) facts.push(['Cook', `${recipe.cook_minutes} min`]);
   if (time) facts.push(['Total', time]);
-  if (recipe.servings) facts.push(['Serves', recipe.servings]);
+  if (recipe.servings) facts.push(['Serves', recipe.servings, 'serves']);
 
   return `
     <section class="recipe-head">
@@ -64,17 +71,26 @@ function recipeHTML() {
       ? `<img class="hero-photo" src="${esc(recipe.hero_url)}" alt="${esc(recipe.title)}">`
       : ''}
 
-    ${facts.length ? `<div class="facts">${facts.map(([label, value]) => `
+    ${facts.length ? `<div class="facts">${facts.map(([label, value, key]) => `
       <div class="fact">
         <div class="fact-label">${esc(label)}</div>
-        <div class="fact-value">${esc(value)}</div>
+        <div class="fact-value"${key ? ` data-fact="${key}"` : ''}>${esc(value)}</div>
       </div>`).join('')}</div>` : ''}
 
     <div class="recipe-columns">
       <div>
-        <h2 class="section-title">Ingredients</h2>
+        <div class="ingredients-head">
+          <h2 class="section-title">Ingredients</h2>
+          ${ingredients.length ? `
+          <div class="scale-group" role="group" aria-label="Scale the recipe">
+            ${SCALE_OPTIONS.map((o) => `
+              <button type="button" class="scale-btn" data-factor="${o.factor}"
+                aria-pressed="false" aria-label="${o.name}" title="${o.name}">${o.label}</button>`).join('')}
+          </div>` : ''}
+        </div>
         ${ingredients.length
-          ? `<ul class="ingredients">${ingredients.map((i) => `<li>${esc(i)}</li>`).join('')}</ul>`
+          ? `<p class="scale-note" id="scale-note" hidden></p>
+             <ul class="ingredients" id="ingredient-list"></ul>`
           : '<p class="muted">No ingredients listed.</p>'}
       </div>
       <div>
@@ -316,8 +332,49 @@ async function load() {
   await loadReviews();
 
   root.innerHTML = recipeHTML();
+  renderIngredients();
+  root.querySelectorAll('.scale-btn').forEach((btn) => {
+    btn.addEventListener('click', () => setScale(Number(btn.dataset.factor)));
+  });
   renderReviewForm();
   renderReviews();
+}
+
+// --- scaling ---------------------------------------------------------
+
+function renderIngredients() {
+  const list = $('#ingredient-list');
+  if (!list) return;
+
+  list.innerHTML = asList(recipe.ingredients)
+    .map((line) => `<li>${esc(scaleIngredient(line, scaleFactor))}</li>`)
+    .join('');
+
+  root.querySelectorAll('.scale-btn').forEach((btn) => {
+    btn.setAttribute('aria-pressed', String(Number(btn.dataset.factor) === scaleFactor));
+  });
+
+  const serves = root.querySelector('[data-fact="serves"]');
+  if (serves && recipe.servings) serves.textContent = formatQuantity(recipe.servings * scaleFactor);
+
+  // The method is prose ("add 3 cups stock, divided"), and rewriting numbers
+  // inside sentences would also hit temperatures, times and pan sizes. So
+  // it stays as written, and the reader is told so.
+  const note = $('#scale-note');
+  const option = SCALE_OPTIONS.find((o) => o.factor === scaleFactor);
+  note.hidden = scaleFactor === 1;
+  if (scaleFactor !== 1) {
+    note.textContent = `Ingredients shown at ${option.label}. Amounts mentioned in the method are for the original recipe.`;
+  }
+}
+
+function setScale(factor) {
+  scaleFactor = factor;
+  renderIngredients();
+  const url = new URL(location.href);
+  if (factor === 1) url.searchParams.delete('x');
+  else url.searchParams.set('x', String(factor));
+  history.replaceState(null, '', url);
 }
 
 load();
