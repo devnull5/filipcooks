@@ -10,6 +10,8 @@ open it with any static file server and deploy it by pushing to GitHub.
 index.html            recipe grid — search, category filter, sort
 recipe.html           one recipe + its review thread
 admin.html            post/edit/publish recipes (admins only)
+privacy.html          privacy policy (required to publish the Google OAuth app)
+terms.html            terms of service (same)
 404.html              GitHub Pages fallback
 CNAME                 custom domain for GitHub Pages
 assets/css/style.css  all styling, light + dark
