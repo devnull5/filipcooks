@@ -78,8 +78,8 @@ A few details worth knowing:
 
 ### 2. Google sign-in
 
-1. In Supabase: **Authentication → Providers → Google** → enable it. Copy the
-   **callback URL** it shows you.
+1. In Supabase: **Authentication → Providers → Google** → enable it. The callback
+   URL is `https://<project-ref>.supabase.co/auth/v1/callback`.
 2. In [Google Cloud Console](https://console.cloud.google.com/apis/credentials):
    create an **OAuth client ID** of type *Web application*.
    - *Authorised JavaScript origins*: `https://filipcooks.com`
@@ -87,14 +87,26 @@ A few details worth knowing:
    - *Authorised redirect URIs*: the Supabase callback URL from step 1
 3. Paste the Google **client ID** and **client secret** back into Supabase and save.
 4. In Supabase: **Authentication → URL Configuration** → set **Site URL** to
-   `https://filipcooks.com` and add both `https://filipcooks.com/**` and
-   `http://localhost:5173/**` to **Redirect URLs**.
+   `https://filipcooks.com` and add `https://filipcooks.com/**`,
+   `https://www.filipcooks.com/**` and `http://localhost:5173/**` to
+   **Redirect URLs**.
+5. **Publish the Google app.** A new External OAuth app starts in *Testing*
+   mode, where only email addresses you add as test users can sign in — every
+   other visitor gets "access blocked". In Google Cloud Console go to
+   **Google Auth Platform → Audience** and click **Publish app**. Because this
+   site only requests the basic `email`/`profile` scopes, publishing needs no
+   Google review.
 
 ### 3. Make yourself the admin
 
 Sign in on the site once with Google — that creates your `profiles` row. Then run
-`supabase/make-me-admin.sql` in the SQL Editor. Reload, and **Admin** appears in
-the header.
+`supabase/make-me-admin.sql` in the SQL Editor. It lists the accounts that have
+signed in before you promote one; don't skip that, because an UPDATE matching no
+rows succeeds silently and you'd be left wondering why **Admin** never appeared.
+
+> Two Google accounts are in play on this project: `lipmj186@gmail.com` and
+> `merditaj.filip@gmail.com` (the latter owns the Google Cloud OAuth app). The
+> one you *sign in to the site with* is the one to promote.
 
 ### 4. Deploy
 
