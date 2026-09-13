@@ -1,0 +1,10 @@
+.DS_Store
+Thumbs.db
+*.log
+.vscode/
+.idea/
+
+# Never commit the service_role key or any other server-side secret.
+# (assets/js/config.js holds only the public anon key and IS committed.)
+.env
+.env.*

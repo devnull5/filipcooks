@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Filip Cooks — Recipes worth making twice</title>
+  <meta name="description" content="Home cooking from Filip's kitchen. Real recipes, honest reviews from people who actually made them.">
+  <meta property="og:title" content="Filip Cooks">
+  <meta property="og:description" content="Recipes worth making twice.">
+  <meta property="og:type" content="website">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🍳</text></svg>">
+  <link rel="stylesheet" href="assets/css/style.css">
+</head>
+<body>
+
+  <header class="site-header">
+    <div class="wrap">
+      <a class="brand" href="index.html">
+        <span class="brand-mark">🍳</span> Filip Cooks
+      </a>
+      <nav class="site-nav">
+        <a href="index.html" aria-current="page">Recipes</a>
+        <div id="auth-slot"></div>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <section class="hero wrap">
+      <p class="eyebrow">From Filip's kitchen</p>
+      <h1>Recipes worth making twice</h1>
+      <p class="lede">
+        Everything here has been cooked, eaten, and argued about at my table.
+        Made one? Leave a review and tell me what you'd change.
+      </p>
+    </section>
+
+    <div class="wrap">
+      <div id="setup-slot"></div>
+
+      <div class="toolbar" id="toolbar" hidden>
+        <div class="search-field">
+          <label class="sr-only" for="search">Search recipes</label>
+          <input type="search" id="search" placeholder="Search recipes, ingredients…" autocomplete="off">
+        </div>
+        <div class="chips" id="category-chips"></div>
+        <label class="sr-only" for="sort">Sort by</label>
+        <select id="sort" style="width:auto">
+          <option value="newest">Newest first</option>
+          <option value="top">Top rated</option>
+          <option value="reviewed">Most reviewed</option>
+          <option value="quick">Quickest</option>
+        </select>
+      </div>
+
+      <div id="recipe-grid" class="recipe-grid"></div>
+    </div>
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap">
+      <span>© <span id="year"></span> Filip Cooks</span>
+      <span>Built with Supabase · Hosted on GitHub Pages</span>
+    </div>
+  </footer>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+  <script src="assets/js/config.js"></script>
+  <script type="module" src="assets/js/home.js"></script>
+</body>
+</html>

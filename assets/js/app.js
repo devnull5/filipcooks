@@ -1,0 +1,218 @@
+// ---------------------------------------------------------------------
+// Shared layer: Supabase client, auth, header rendering, small helpers.
+// Loaded by every page before that page's own script.
+// ---------------------------------------------------------------------
+
+const cfg = window.FILIPCOOKS_CONFIG || {};
+const CONFIGURED =
+  cfg.SUPABASE_URL &&
+  cfg.SUPABASE_ANON_KEY &&
+  !cfg.SUPABASE_URL.startsWith('PASTE_');
+
+export const configured = CONFIGURED;
+
+export const sb = CONFIGURED
+  ? window.supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY, {
+      auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true },
+    })
+  : null;
+
+// --- tiny DOM helpers ------------------------------------------------
+
+export const $ = (sel, root = document) => root.querySelector(sel);
+export const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
+
+/** Escape text destined for innerHTML. Everything user-authored goes through this. */
+export function esc(value) {
+  return String(value ?? '').replace(/[&<>"']/g, (c) => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+  }[c]));
+}
+
+export function el(tag, className, text) {
+  const node = document.createElement(tag);
+  if (className) node.className = className;
+  if (text != null) node.textContent = text;
+  return node;
+}
+
+export function slugify(text) {
+  return String(text)
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '') // strip accents
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 80);
+}
+
+export function fmtDate(iso) {
+  if (!iso) return '';
+  return new Date(iso).toLocaleDateString(undefined, {
+    year: 'numeric', month: 'short', day: 'numeric',
+  });
+}
+
+export function totalTime(recipe) {
+  const total = (recipe.prep_minutes || 0) + (recipe.cook_minutes || 0);
+  if (!total) return null;
+  if (total < 60) return `${total} min`;
+  const h = Math.floor(total / 60);
+  const m = total % 60;
+  return m ? `${h} hr ${m} min` : `${h} hr`;
+}
+
+export function avgRating(recipe) {
+  if (!recipe.review_count) return 0;
+  return recipe.rating_sum / recipe.review_count;
+}
+
+/** Read-only star display. `value` may be fractional. */
+export function starsHTML(value, extraClass = '') {
+  const pct = Math.max(0, Math.min(100, (Number(value) / 5) * 100));
+  return `<span class="stars ${extraClass}" role="img" aria-label="${
+    value ? Number(value).toFixed(1) : 'No'
+  } out of 5 stars">
+    <span class="stars-empty">★★★★★</span>
+    <span class="stars-full" style="width:${pct}%">★★★★★</span>
+  </span>`;
+}
+
+/** Transient message banner. `kind` is 'ok' | 'err' | 'info'. */
+export function toast(message, kind = 'info') {
+  let host = $('#toast-host');
+  if (!host) {
+    host = el('div');
+    host.id = 'toast-host';
+    document.body.appendChild(host);
+  }
+  const node = el('div', `toast toast-${kind}`, message);
+  host.appendChild(node);
+  setTimeout(() => {
+    node.classList.add('toast-out');
+    setTimeout(() => node.remove(), 300);
+  }, 4200);
+}
+
+// --- auth ------------------------------------------------------------
+
+let cachedProfile = null;
+
+export async function getSession() {
+  if (!sb) return null;
+  const { data } = await sb.auth.getSession();
+  return data.session ?? null;
+}
+
+/** The signed-in user's profile row (incl. is_admin), or null. */
+export async function getProfile({ refresh = false } = {}) {
+  if (!sb) return null;
+  if (cachedProfile && !refresh) return cachedProfile;
+
+  const session = await getSession();
+  if (!session) { cachedProfile = null; return null; }
+
+  const { data, error } = await sb
+    .from('profiles')
+    .select('id, display_name, avatar_url, is_admin')
+    .eq('id', session.user.id)
+    .maybeSingle();
+
+  if (error) { console.warn('profile load failed', error); return null; }
+
+  // The signup trigger normally creates this row; if it somehow hasn't
+  // landed yet, fall back to the identity data Google gave us.
+  cachedProfile = data ?? {
+    id: session.user.id,
+    display_name:
+      session.user.user_metadata?.full_name ||
+      session.user.user_metadata?.name ||
+      session.user.email?.split('@')[0],
+    avatar_url: session.user.user_metadata?.avatar_url ?? null,
+    is_admin: false,
+  };
+  return cachedProfile;
+}
+
+export async function signInWithGoogle() {
+  if (!sb) return toast('Supabase is not configured yet.', 'err');
+  // Come back to whatever page the visitor was reading.
+  const redirectTo = window.location.href.split('#')[0];
+  const { error } = await sb.auth.signInWithOAuth({
+    provider: 'google',
+    options: { redirectTo },
+  });
+  if (error) toast(error.message, 'err');
+}
+
+export async function signOut() {
+  if (!sb) return;
+  await sb.auth.signOut();
+  cachedProfile = null;
+  window.location.reload();
+}
+
+// --- header ----------------------------------------------------------
+
+/** Fills in the auth corner of the site header on every page. */
+export async function renderHeader() {
+  const slot = $('#auth-slot');
+  if (!slot) return;
+
+  const profile = await getProfile();
+  slot.innerHTML = '';
+
+  if (!profile) {
+    const btn = el('button', 'btn btn-google', 'Sign in with Google');
+    btn.addEventListener('click', signInWithGoogle);
+    slot.appendChild(btn);
+    return;
+  }
+
+  const wrap = el('div', 'user-chip');
+  if (profile.avatar_url) {
+    const img = el('img', 'avatar');
+    img.src = profile.avatar_url;
+    img.alt = '';
+    img.referrerPolicy = 'no-referrer';
+    wrap.appendChild(img);
+  }
+  wrap.appendChild(el('span', 'user-name', profile.display_name || 'You'));
+
+  // The admin page already links to itself in its nav; don't say it twice.
+  if (profile.is_admin && !location.pathname.endsWith('admin.html')) {
+    const link = el('a', 'btn btn-ghost btn-sm', 'Admin');
+    link.href = 'admin.html';
+    wrap.appendChild(link);
+  }
+
+  const out = el('button', 'btn btn-ghost btn-sm', 'Sign out');
+  out.addEventListener('click', signOut);
+  wrap.appendChild(out);
+
+  slot.appendChild(wrap);
+}
+
+/** Big friendly warning shown when config.js still has placeholders. */
+export function renderSetupNotice(container) {
+  container.innerHTML = `
+    <div class="setup-notice">
+      <h2>Almost there — Supabase isn't connected yet</h2>
+      <p>Open <code>assets/js/config.js</code> and paste in your Supabase
+         <strong>Project URL</strong> and <strong>anon public key</strong>.
+         You'll find both under <em>Project Settings → Data API</em> in the
+         Supabase dashboard.</p>
+      <p>Then make sure you've run <code>supabase/schema.sql</code> in the
+         Supabase SQL Editor.</p>
+    </div>`;
+}
+
+// Keep the header honest if auth state changes in another tab.
+if (sb) {
+  sb.auth.onAuthStateChange((event) => {
+    if (event === 'SIGNED_IN' || event === 'SIGNED_OUT') {
+      cachedProfile = null;
+      renderHeader();
+    }
+  });
+}
