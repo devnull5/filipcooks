@@ -80,6 +80,20 @@ A few details worth knowing:
 
 ### 2. Google sign-in
 
+Sign-in uses **Google Identity Services**: Google's own button runs on this
+site, returns a signed ID token, and the site passes it to Supabase with
+`signInWithIdToken` (with a SHA-256 nonce against replay). Because nothing
+redirects through `<project-ref>.supabase.co`, Google's prompt says
+**"Sign in to filipcooks.com"**. If Google's script can't load (blocked by an
+extension, say) or an ID-token sign-in fails, the buttons fall back to the
+older Supabase redirect flow, so keep both halves of the config below.
+
+- `GOOGLE_CLIENT_ID` in `assets/js/config.js` must match a client ID listed in
+  Supabase's Google provider **Client IDs** field — that's what Supabase checks
+  the token's audience against.
+- Every origin the site runs on must be an **Authorised JavaScript origin** on
+  the Google client, or Google refuses to draw the button.
+
 1. In Supabase: **Authentication → Providers → Google** → enable it. The callback
    URL is `https://<project-ref>.supabase.co/auth/v1/callback`.
 2. In [Google Cloud Console](https://console.cloud.google.com/apis/credentials):

@@ -177,6 +177,11 @@ h3 { font-size: 1.15rem; }
 .btn-google { background: var(--surface); color: var(--ink); border-color: var(--border-strong); box-shadow: var(--shadow); }
 .btn-google:hover { background: var(--surface-alt); color: var(--ink); }
 
+/* Google renders its sign-in button inside an iframe in this holder.
+   Reserve its height so the layout doesn't jump while the script loads. */
+.gsi-slot { display: inline-flex; justify-content: center; align-items: center; min-height: 40px; }
+.site-nav .gsi-slot { min-height: 32px; }
+
 /* --- user chip ------------------------------------------------------- */
 
 .user-chip { display: flex; align-items: center; gap: .6rem; }

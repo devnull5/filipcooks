@@ -2,7 +2,7 @@
 
 import {
   sb, configured, $, esc, avgRating, starsHTML, totalTime, fmtDate,
-  renderHeader, renderSetupNotice, getProfile, signInWithGoogle, toast,
+  renderHeader, renderSetupNotice, getProfile, renderGoogleButton, toast,
 } from './app.js';
 
 const root = $('#recipe-root');
@@ -102,9 +102,9 @@ function renderReviewForm() {
     slot.innerHTML = `
       <div class="signin-prompt">
         <p><strong>Made this?</strong> Sign in to leave a rating and tell everyone how it went.</p>
-        <button class="btn btn-google" id="signin-btn">Sign in with Google</button>
+        <div class="gsi-slot" id="signin-btn"></div>
       </div>`;
-    $('#signin-btn').addEventListener('click', signInWithGoogle);
+    renderGoogleButton($('#signin-btn'));
     return;
   }
 

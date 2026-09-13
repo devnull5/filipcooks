@@ -4,7 +4,7 @@
 
 import {
   sb, configured, $, esc, slugify, avgRating,
-  renderHeader, renderSetupNotice, getProfile, signInWithGoogle, toast,
+  renderHeader, renderSetupNotice, getProfile, renderGoogleButton, toast,
 } from './app.js';
 
 const root = $('#admin-root');
@@ -23,9 +23,9 @@ function gateSignIn() {
     <div class="gate">
       <h1>Admin</h1>
       <p>Sign in with the Google account that owns this site.</p>
-      <button class="btn btn-google" id="signin-btn">Sign in with Google</button>
+      <div class="gsi-slot" id="signin-btn"></div>
     </div>`;
-  $('#signin-btn').addEventListener('click', signInWithGoogle);
+  renderGoogleButton($('#signin-btn'));
 }
 
 function gateDenied() {

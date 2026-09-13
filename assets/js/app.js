@@ -134,6 +134,11 @@ export async function getProfile({ refresh = false } = {}) {
   return cachedProfile;
 }
 
+/**
+ * Redirect-based sign-in. Google's prompt names the redirect target, which
+ * is the Supabase project domain, so this is only the fallback for when the
+ * Google Identity Services button below can't be used.
+ */
 export async function signInWithGoogle() {
   if (!sb) return toast('Supabase is not configured yet.', 'err');
   // Come back to whatever page the visitor was reading.
@@ -145,9 +150,129 @@ export async function signInWithGoogle() {
   if (error) toast(error.message, 'err');
 }
 
+// --- Google Identity Services ----------------------------------------
+//
+// Google's own button gets a signed ID token on this origin and we hand it
+// to Supabase with signInWithIdToken. Nothing redirects through supabase.co,
+// so Google's prompt says "filipcooks.com". Supabase checks the token's
+// audience against the client ID(s) configured on its Google provider.
+
+const GOOGLE_CLIENT_ID = cfg.GOOGLE_CLIENT_ID;
+
+let gsiScript = null;          // promise for the loaded google.accounts.id API
+let gsiInit = null;            // promise for an initialize() armed with a nonce
+let rawNonce = null;           // the unhashed half of the current nonce
+let fallbackToRedirect = false;
+const googleButtons = new Map(); // container -> render options, for re-rendering
+
+function loadGsiScript() {
+  gsiScript ??= new Promise((resolve, reject) => {
+    if (window.google?.accounts?.id) return resolve(window.google.accounts.id);
+    const s = document.createElement('script');
+    s.src = 'https://accounts.google.com/gsi/client';
+    s.async = true;
+    s.onload = () => (window.google?.accounts?.id
+      ? resolve(window.google.accounts.id)
+      : reject(new Error('Google sign-in script loaded without its API')));
+    s.onerror = () => reject(new Error('Google sign-in script failed to load'));
+    document.head.appendChild(s);
+    setTimeout(() => reject(new Error('Google sign-in script timed out')), 8000);
+  });
+  return gsiScript;
+}
+
+/**
+ * A nonce ties the ID token to this one sign-in attempt so a captured token
+ * can't be replayed. Google gets the SHA-256 hex digest; Supabase gets the
+ * raw value, hashes it itself, and compares against the token's claim.
+ */
+async function makeNonce() {
+  const bytes = crypto.getRandomValues(new Uint8Array(32));
+  const raw = btoa(String.fromCharCode(...bytes));
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(raw));
+  const hashed = [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('');
+  return { raw, hashed };
+}
+
+function ensureGsi() {
+  gsiInit ??= (async () => {
+    if (!GOOGLE_CLIENT_ID) throw new Error('GOOGLE_CLIENT_ID is missing from config.js');
+    const gsi = await loadGsiScript();
+    const { raw, hashed } = await makeNonce();
+    rawNonce = raw;
+    gsi.initialize({
+      client_id: GOOGLE_CLIENT_ID,
+      nonce: hashed,
+      callback: handleGoogleCredential,
+      auto_select: false,
+      cancel_on_tap_outside: true,
+    });
+    return gsi;
+  })();
+  return gsiInit;
+}
+
+async function handleGoogleCredential(response) {
+  const { error } = await sb.auth.signInWithIdToken({
+    provider: 'google',
+    token: response.credential,
+    nonce: rawNonce,
+  });
+
+  if (error) {
+    console.warn('ID-token sign-in failed, switching to redirect sign-in:', error);
+    toast(`Sign-in didn't go through (${error.message}). Please try again.`, 'err');
+    // Don't strand the visitor on a flow that just failed: swap every button
+    // for the redirect flow, which is known to work.
+    fallbackToRedirect = true;
+    for (const [container, opts] of googleButtons) renderGoogleButton(container, opts);
+    return;
+  }
+
+  cachedProfile = null;
+  // Page-specific UI (review form, admin gate) depends on auth state, so
+  // a reload is the simplest way to get every part of the page right.
+  window.location.reload();
+}
+
+function renderRedirectButton(container) {
+  container.innerHTML = '';
+  const btn = el('button', 'btn btn-google', 'Sign in with Google');
+  btn.addEventListener('click', signInWithGoogle);
+  container.appendChild(btn);
+}
+
+/** Renders a "Sign in with Google" button into `container`. */
+export async function renderGoogleButton(container, { size = 'large' } = {}) {
+  if (!container) return;
+  googleButtons.set(container, { size });
+  if (!sb) return;
+
+  if (fallbackToRedirect) return renderRedirectButton(container);
+
+  try {
+    const gsi = await ensureGsi();
+    container.innerHTML = '';
+    gsi.renderButton(container, {
+      type: 'standard',
+      theme: matchMedia('(prefers-color-scheme: dark)').matches ? 'filled_black' : 'outline',
+      size,
+      text: 'signin_with',
+      shape: 'pill',
+      logo_alignment: 'left',
+    });
+  } catch (err) {
+    // Blocked by an extension, offline, or misconfigured: still let people in.
+    console.warn('Google Identity Services unavailable, using redirect sign-in:', err);
+    fallbackToRedirect = true;
+    renderRedirectButton(container);
+  }
+}
+
 export async function signOut() {
   if (!sb) return;
   await sb.auth.signOut();
+  window.google?.accounts?.id?.disableAutoSelect();
   cachedProfile = null;
   window.location.reload();
 }
@@ -163,9 +288,9 @@ export async function renderHeader() {
   slot.innerHTML = '';
 
   if (!profile) {
-    const btn = el('button', 'btn btn-google', 'Sign in with Google');
-    btn.addEventListener('click', signInWithGoogle);
-    slot.appendChild(btn);
+    const holder = el('div', 'gsi-slot');
+    slot.appendChild(holder);
+    renderGoogleButton(holder, { size: 'medium' });
     return;
   }
 

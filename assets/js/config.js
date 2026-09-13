@@ -12,4 +12,9 @@
 window.FILIPCOOKS_CONFIG = {
   SUPABASE_URL: 'https://zxgnupoprrhhwyufcjkk.supabase.co',
   SUPABASE_ANON_KEY: 'sb_publishable_dzQJAqsFrcHiSHYd48hVcQ_xVJ2DTfF',
+
+  // Google OAuth *client ID* (public — it appears in every sign-in request).
+  // Must also be listed under Supabase → Auth → Providers → Google → Client IDs.
+  // The client *secret* never goes here.
+  GOOGLE_CLIENT_ID: '560087932543-j62865rhlf6b3roe0vq0k6h08a16u8t1.apps.googleusercontent.com',
 };
