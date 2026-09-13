@@ -18,7 +18,8 @@ assets/js/app.js      shared client, auth, header, helpers
 assets/js/home.js     index.html behaviour
 assets/js/recipe.js   recipe.html behaviour
 assets/js/admin.js    admin.html behaviour
-supabase/schema.sql   tables, triggers, RLS, storage — run this once
+supabase/setup-all.sql  ONE-SHOT: stale-table rename + full schema. Start here.
+supabase/schema.sql   tables, triggers, RLS, storage (the schema on its own)
 supabase/00-reset-stale-recipes.sql  only if a foreign `recipes` table is in the way
 supabase/make-me-admin.sql   flips your own is_admin flag
 ```
