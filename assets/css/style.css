@@ -681,6 +681,19 @@ label.fact-label { margin-bottom: 0; }
 .skeleton-line { height: .85rem; border-radius: 4px; margin: .75rem 1.15rem; }
 @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .45; } }
 
+.offline-banner {
+  width: min(100% - 2.5rem, 1080px);
+  margin: 1.25rem auto 0;
+  padding: .7rem 1rem;
+  border: 1px solid var(--border-strong);
+  border-left: 4px solid var(--star);
+  border-radius: var(--radius-sm);
+  background: var(--surface-alt);
+  color: var(--ink-soft);
+  font-size: .9rem;
+  line-height: 1.5;
+}
+
 .setup-notice {
   background: var(--ember-wash);
   border: 1px solid var(--ember);

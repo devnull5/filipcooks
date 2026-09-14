@@ -5,6 +5,10 @@ import {
   renderHeader, renderSetupNotice, getProfile, renderGoogleButton, toast,
 } from './app.js';
 import { scaleIngredient, formatQuantity, SCALE_OPTIONS } from './scale.js';
+import {
+  publicDb, RECIPE_FIELDS, withRetry, withTimeout, loadResilient,
+  savedCopy, rememberRecipes, setOfflineBanner,
+} from './data.js';
 
 const root = $('#recipe-root');
 $('#year').textContent = new Date().getFullYear();
@@ -20,6 +24,9 @@ const MAX_SERVINGS = 100;
 let recipe = null;
 let reviews = [];
 let profile = null;
+let profileKnown = false;     // the sign-in check has finished (or given up)
+let reviewsState = 'loading'; // 'loading' | 'ok' | 'error'
+let currentSource = 'live';   // 'live', or a saved copy: 'browser' / 'snapshot'
 let myReview = null;
 let draftRating = 0;
 
@@ -68,7 +75,7 @@ function recipeHTML() {
     </section>
 
     ${recipe.hero_url
-      ? `<img class="hero-photo" src="${esc(recipe.hero_url)}" alt="${esc(recipe.title)}">`
+      ? `<img class="hero-photo" src="${esc(recipe.hero_url)}" alt="${esc(recipe.title)}" onerror="this.remove()">`
       : ''}
 
     ${facts.length ? `<div class="facts">${facts.map(([label, value, key]) => key === 'serves' ? `
@@ -123,6 +130,16 @@ function recipeHTML() {
 /** The star picker + comment box, or a sign-in nudge. */
 function renderReviewForm() {
   const slot = $('#review-form-slot');
+  if (!slot) return;
+
+  // Don't flash a sign-in prompt at someone who is signed in but whose
+  // session check is still on its way back.
+  if (!profileKnown) { slot.innerHTML = ''; return; }
+
+  if (currentSource !== 'live') {
+    slot.innerHTML = '<p class="muted">Posting reviews is paused while the recipe database is unavailable.</p>';
+    return;
+  }
 
   if (!profile) {
     slot.innerHTML = `
@@ -207,6 +224,22 @@ function reviewHTML(review) {
 
 function renderReviews() {
   const list = $('#review-list');
+  if (!list) return;
+
+  if (reviewsState === 'loading') {
+    list.innerHTML = '<p class="muted">Loading reviews…</p>';
+    return;
+  }
+  if (reviewsState === 'error') {
+    list.innerHTML = `
+      <div class="empty">
+        <div class="empty-icon">💬</div>
+        <h3>Reviews can't be loaded right now</h3>
+        <p>The recipe is all here. Reviews should be back shortly.</p>
+      </div>`;
+    return;
+  }
+  myReview = profile ? reviews.find((r) => r.user_id === profile.id) ?? null : null;
   const others = reviews.filter((r) => !(profile && r.user_id === profile.id));
   const ordered = myReview ? [myReview, ...others] : others;
 
@@ -304,19 +337,50 @@ async function refreshRatingSummary() {
 }
 
 async function loadReviews() {
-  const { data, error } = await sb
-    .from('reviews')
-    .select('id, rating, body, created_at, user_id, profiles ( display_name, avatar_url )')
-    .eq('recipe_id', recipe.id)
-    .order('created_at', { ascending: false });
-
-  if (error) { console.warn('reviews load failed', error); reviews = []; myReview = null; return; }
-
-  reviews = data ?? [];
+  if (!recipe) return;
+  reviewsState = 'loading';
+  try {
+    const data = await withRetry((signal) => publicDb
+      .from('reviews')
+      .select('id, rating, body, created_at, user_id, profiles ( display_name, avatar_url )')
+      .eq('recipe_id', recipe.id)
+      .order('created_at', { ascending: false })
+      .abortSignal(signal));
+    reviews = data ?? [];
+    reviewsState = 'ok';
+  } catch (error) {
+    console.warn('reviews load failed', error);
+    reviews = [];
+    reviewsState = 'error';
+  }
   myReview = profile ? reviews.find((r) => r.user_id === profile.id) ?? null : null;
 }
 
 // --- boot ------------------------------------------------------------
+
+/** Put a recipe on the page — first render, or a live copy replacing a saved one. */
+function showRecipe(data, meta) {
+  const firstRender = !recipe;
+  recipe = data;
+  currentSource = meta.source;
+  document.title = `${recipe.title} — Filip Cooks`;
+  if (meta.source === 'live') rememberRecipes([recipe]);
+  setOfflineBanner(meta);
+
+  if (firstRender) scaleFactor = initialScale();
+  root.innerHTML = recipeHTML();
+  wireScaling();
+  renderIngredients();
+  renderReviewForm();
+  renderReviews();
+
+  loadReviews().then(() => {
+    renderReviews(); // works out which review is yours first
+    // Don't wipe out a review someone has already started writing.
+    const typing = $('#review-body')?.value.trim() || $('#review-form-slot')?.contains(document.activeElement);
+    if (!typing) renderReviewForm();
+  });
+}
 
 async function load() {
   if (!configured) return renderSetupNotice(root);
@@ -325,28 +389,60 @@ async function load() {
   renderHeader();
   root.innerHTML = '<p class="muted" style="padding:4rem 0">Loading…</p>';
 
-  profile = await getProfile();
+  // Start the sign-in check now, but never let it hold up the recipe — and
+  // don't make the review area wait on a slow database either.
+  const profilePromise = withTimeout(getProfile(), 6000, null);
+  profilePromise.then((p) => {
+    profile = p;
+    profileKnown = true;
+    if (recipe) { renderReviews(); renderReviewForm(); }
+  });
 
-  const { data, error } = await sb
-    .from('recipes')
-    .select('*')
-    .eq('slug', slug)
-    .maybeSingle();
+  let shown = false;
+  let unreachable = false;
+  try {
+    await loadResilient({
+      live: () => withRetry((signal) => publicDb
+        .from('recipes')
+        .select(RECIPE_FIELDS)
+        .eq('slug', slug)
+        .eq('published', true)
+        .abortSignal(signal)
+        .maybeSingle()),
+      fallback: () => savedCopy((list) => list.find((r) => r.slug === slug) ?? null),
+      render: (data, meta) => {
+        if (!data) return; // not published, or no such recipe
+        shown = true;
+        showRecipe(data, meta);
+      },
+    });
+  } catch (error) {
+    unreachable = true;
+    console.warn('recipe failed to load', error);
+  }
 
-  if (error) return notFound(error.message);
-  if (!data) return notFound();
+  profile = await profilePromise;
+  profileKnown = true;
 
-  recipe = data;
-  document.title = `${recipe.title} — Filip Cooks`;
+  // Unpublished recipes are only visible to the admin, as a draft preview.
+  if (!shown && profile?.is_admin) {
+    try {
+      const draft = await withRetry((signal) => sb
+        .from('recipes').select(RECIPE_FIELDS).eq('slug', slug).abortSignal(signal).maybeSingle());
+      if (draft) { shown = true; showRecipe(draft, { source: 'live' }); }
+    } catch (error) {
+      console.warn('draft lookup failed', error);
+    }
+  }
 
-  await loadReviews();
+  if (!shown) {
+    return notFound(unreachable
+      ? "The recipe database isn't responding right now, and there's no saved copy of this recipe yet. Please try again in a few minutes."
+      : undefined);
+  }
 
-  scaleFactor = initialScale();
-  root.innerHTML = recipeHTML();
-  wireScaling();
-  renderIngredients();
-  renderReviewForm();
   renderReviews();
+  renderReviewForm();
 }
 
 // --- scaling ---------------------------------------------------------

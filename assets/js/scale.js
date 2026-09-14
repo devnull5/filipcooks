@@ -152,6 +152,62 @@ function inflectUnit(rest, singular) {
   return m[1] + word + rest.slice(m[0].length);
 }
 
+// --- spoons ----------------------------------------------------------
+//
+// Scaling down leaves amounts nobody can measure: a quarter batch of ⅓ cup
+// is 1⁄12 cup. Below half a cup, anything that isn't a plain ¼ or ⅓ cup is
+// rewritten in tablespoons and teaspoons (1 cup = 16 tbsp = 48 tsp), the
+// way a cook would actually measure it. Same for fiddly tablespoon amounts,
+// and a pinch for anything under ⅛ teaspoon.
+
+const SPOON_UNITS = {
+  cup: ['cup', 48, 'word'], cups: ['cup', 48, 'word'],
+  tablespoon: ['tbsp', 3, 'word'], tablespoons: ['tbsp', 3, 'word'],
+  tbsp: ['tbsp', 3, 'abbr'], tbsps: ['tbsp', 3, 'abbr'], tbs: ['tbsp', 3, 'abbr'],
+  teaspoon: ['tsp', 1, 'word'], teaspoons: ['tsp', 1, 'word'],
+  tsp: ['tsp', 1, 'abbr'], tsps: ['tsp', 1, 'abbr'],
+};
+
+const near = (a, b) => Math.abs(a - b) < 0.01;
+
+function toSpoons(rest, amount) {
+  const m = rest.match(/^(\s+)([A-Za-z]+)(\.?)(?![A-Za-z])/);
+  if (!m) return null;
+  const unit = SPOON_UNITS[m[2].toLowerCase()];
+  if (!unit) return null;
+  const [kind, tspPerUnit, style] = unit;
+
+  if (kind === 'cup' && (amount >= 0.5 || near(amount, 1 / 4) || near(amount, 1 / 3))) return null;
+  if (kind === 'tbsp' && amount >= 1 && near(amount * 2, Math.round(amount * 2))) return null;
+  if (kind === 'tsp' && amount >= 0.125 - 0.004) return null;
+
+  const capital = m[2][0] === m[2][0].toUpperCase();
+  const name = (which, n) => {
+    const one = isSingular(formatQuantity(n), n);
+    let word;
+    if (which === 'pinch') word = one ? 'pinch' : 'pinches';
+    else if (style === 'abbr') word = which; // tbsp / tsp don't inflect
+    else if (which === 'tbsp') word = one ? 'tablespoon' : 'tablespoons';
+    else word = one ? 'teaspoon' : 'teaspoons';
+    return capital ? word[0].toUpperCase() + word.slice(1) : word;
+  };
+
+  // Nearest quarter teaspoon is as fine as home measuring spoons go.
+  const tsp = Math.round(amount * tspPerUnit * 4) / 4;
+  let measure;
+  if (tsp < 0.125) {
+    measure = `1 ${name('pinch', 1)}`;
+  } else if (tsp <= 4) {
+    measure = `${formatQuantity(tsp)} ${name('tsp', tsp)}`;
+  } else {
+    const tbsp = Math.floor(tsp / 3 + 1e-9);
+    const remainder = Math.round((tsp - tbsp * 3) * 4) / 4;
+    measure = `${tbsp} ${name('tbsp', tbsp)}` +
+      (remainder > 0 ? ` + ${formatQuantity(remainder)} ${name('tsp', remainder)}` : '');
+  }
+  return measure + rest.slice(m[0].length);
+}
+
 /**
  * Scale one ingredient line. At a factor of 1 the original text is returned
  * untouched, exactly as the recipe author wrote it.
@@ -179,8 +235,15 @@ export function scaleIngredient(line, factor) {
     quantity += sep + last;
   }
 
-  // A range's unit agrees with its upper bound: "1 to 1½ tablespoons".
   const rest = text.slice(whole.length);
+
+  // Ranges stay in their own unit; converting both ends reads badly.
+  if (!secondTok) {
+    const spoons = toSpoons(rest, amount);
+    if (spoons) return lead + spoons;
+  }
+
+  // A range's unit agrees with its upper bound: "1 to 1½ tablespoons".
   return lead + quantity + inflectUnit(rest, isSingular(last, amount));
 }
 

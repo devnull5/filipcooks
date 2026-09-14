@@ -4,13 +4,21 @@ import {
   sb, configured, $, esc, avgRating, starsHTML, totalTime,
   renderHeader, renderSetupNotice, getProfile,
 } from './app.js';
+import {
+  publicDb, RECIPE_FIELDS, withRetry, withTimeout, loadResilient,
+  savedCopy, rememberRecipes, setOfflineBanner,
+} from './data.js';
 
 const grid = $('#recipe-grid');
 const toolbar = $('#toolbar');
 $('#year').textContent = new Date().getFullYear();
 
-let recipes = [];
+let recipes = [];     // published, from live data or a saved copy
+let drafts = [];      // admin-only, merged in once we know who's signed in
 let activeCategory = 'all';
+let listenersWired = false;
+
+const allRecipes = () => [...drafts, ...recipes.filter((r) => !drafts.some((d) => d.id === r.id))];
 
 function skeletons(n = 6) {
   grid.innerHTML = Array.from({ length: n }, () => `
@@ -27,7 +35,8 @@ function cardHTML(recipe) {
   const time = totalTime(recipe);
 
   const photo = recipe.hero_url
-    ? `<img class="card-photo" src="${esc(recipe.hero_url)}" alt="${esc(recipe.title)}" loading="lazy">`
+    ? `<img class="card-photo" src="${esc(recipe.hero_url)}" alt="${esc(recipe.title)}" loading="lazy"
+         onerror="this.outerHTML='<div class=&quot;card-photo-empty&quot; aria-hidden=&quot;true&quot;>🍽️</div>'">`
     : `<div class="card-photo-empty" aria-hidden="true">🍽️</div>`;
 
   const badges = [];
@@ -58,7 +67,7 @@ function cardHTML(recipe) {
 }
 
 function renderChips() {
-  const cats = [...new Set(recipes.map((r) => r.category).filter(Boolean))].sort();
+  const cats = [...new Set(allRecipes().map((r) => r.category).filter(Boolean))].sort();
   const host = $('#category-chips');
   if (!cats.length) { host.innerHTML = ''; return; }
 
@@ -81,7 +90,7 @@ function render() {
   const query = $('#search').value.trim().toLowerCase();
   const sort = $('#sort').value;
 
-  let rows = recipes.slice();
+  let rows = allRecipes();
 
   if (activeCategory !== 'all') {
     rows = rows.filter((r) => r.category === activeCategory);
@@ -123,6 +132,29 @@ function render() {
   grid.innerHTML = rows.map(cardHTML).join('');
 }
 
+function showRecipes() {
+  if (!allRecipes().length) {
+    toolbar.hidden = true;
+    grid.innerHTML = `
+      <div class="empty" style="grid-column:1/-1">
+        <div class="empty-icon">🥘</div>
+        <h3>No recipes yet</h3>
+        <p>Filip hasn't posted anything yet. Check back soon.</p>
+      </div>`;
+    return;
+  }
+
+  toolbar.hidden = false;
+  renderChips();
+  render();
+
+  if (!listenersWired) {
+    listenersWired = true;
+    $('#search').addEventListener('input', render);
+    $('#sort').addEventListener('change', render);
+  }
+}
+
 async function load() {
   if (!configured) {
     renderSetupNotice($('#setup-slot'));
@@ -133,44 +165,45 @@ async function load() {
   renderHeader();
   skeletons();
 
-  // RLS returns drafts too when the admin is signed in, so label them.
-  const profile = await getProfile();
-
-  const { data, error } = await sb
-    .from('recipes')
-    .select('id, slug, title, blurb, hero_url, category, ingredients, prep_minutes, cook_minutes, servings, published, review_count, rating_sum, created_at')
-    .order('created_at', { ascending: false });
-
-  if (error) {
+  try {
+    await loadResilient({
+      live: () => withRetry((signal) => publicDb
+        .from('recipes')
+        .select(RECIPE_FIELDS)
+        .eq('published', true)
+        .order('created_at', { ascending: false })
+        .abortSignal(signal)),
+      fallback: () => savedCopy((list) => (list.length ? list : null)),
+      render: (rows, meta) => {
+        recipes = rows ?? [];
+        if (meta.source === 'live') rememberRecipes(recipes, { replaceAll: true });
+        setOfflineBanner(meta);
+        showRecipes();
+      },
+    });
+  } catch (error) {
     grid.innerHTML = `
       <div class="empty" style="grid-column:1/-1">
         <div class="empty-icon">⚠️</div>
         <h3>Couldn't load recipes</h3>
-        <p>${esc(error.message)}</p>
+        <p>The recipe database isn't responding. Please try again in a few minutes.</p>
       </div>`;
-    return;
+    console.warn('recipes failed to load', error);
   }
 
-  recipes = (data ?? []).filter((r) => r.published || profile?.is_admin);
-
-  if (!recipes.length) {
-    grid.innerHTML = `
-      <div class="empty" style="grid-column:1/-1">
-        <div class="empty-icon">🥘</div>
-        <h3>No recipes yet</h3>
-        <p>${profile?.is_admin
-          ? 'Head to the <a href="admin.html">admin page</a> to post your first one.'
-          : "Filip hasn't posted anything yet. Check back soon."}</p>
-      </div>`;
-    return;
+  // Drafts are only for the admin. Look them up separately so a slow or
+  // failing sign-in check never holds up the recipes everyone else sees.
+  const profile = await withTimeout(getProfile(), 6000, null);
+  if (!profile?.is_admin) return;
+  try {
+    const rows = await withRetry((signal) => sb
+      .from('recipes').select(RECIPE_FIELDS).eq('published', false)
+      .order('created_at', { ascending: false }).abortSignal(signal));
+    drafts = rows ?? [];
+    if (drafts.length) showRecipes();
+  } catch (error) {
+    console.warn('drafts failed to load', error);
   }
-
-  toolbar.hidden = false;
-  renderChips();
-  render();
-
-  $('#search').addEventListener('input', render);
-  $('#sort').addEventListener('change', render);
 }
 
 load();

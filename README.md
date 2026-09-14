@@ -21,6 +21,10 @@ assets/js/home.js     index.html behaviour
 assets/js/recipe.js   recipe.html behaviour
 assets/js/scale.js    ingredient scaling (¼× ½× 1× 2× 3×)
 assets/js/admin.js    admin.html behaviour
+assets/js/data.js     resilient recipe loading: timeouts, retries, saved copies
+data/recipes.json     offline snapshot of published recipes (generated hourly)
+scripts/snapshot.py   regenerates data/recipes.json
+.github/workflows/snapshot.yml  runs snapshot.py hourly and commits changes
 supabase/setup-all.sql  ONE-SHOT: stale-table rename + full schema. Start here.
 supabase/01-fix-column-grants.sql  security patch for instances set up before 2026-09-13
 supabase/schema.sql   tables, triggers, RLS, storage (the schema on its own)
@@ -154,6 +158,39 @@ python -m http.server 5173
 Then open <http://localhost:5173>. Add `http://localhost:5173/**` to the Supabase
 redirect URLs (step 2 above) if you want Google sign-in to work locally.
 
+## When Supabase is down
+
+Supabase free-tier projects occasionally go unhealthy (see the troubleshooting
+note below). The site is built to keep showing recipes when that happens;
+only sign-in and reviews switch off.
+
+- **Reads never wait on sign-in.** Recipes and reviews load through a separate
+  Supabase client with no session, so a stuck Auth service can't block them.
+  The sign-in check runs alongside and gives up after 6 seconds.
+- **Timeouts and retries.** Each request gets 5 seconds and up to three tries.
+- **Saved copies.** If live data isn't back within 2½ seconds (or fails
+  outright), the page shows the freshest saved copy and a notice saying how old
+  it is, then swaps in live data if it arrives:
+  - the visitor's **browser copy**, saved after every successful load, and
+  - **`data/recipes.json`**, a snapshot GitHub Actions refreshes hourly and
+    GitHub Pages serves, so even first-time visitors see recipes.
+- **Photos** are hosted by Supabase too; if they fail, cards fall back to the
+  placeholder and the recipe page hides the photo.
+
+The snapshot job (`.github/workflows/snapshot.yml`) commits only when the
+published recipes actually changed, and leaves the old snapshot alone if
+Supabase is unreachable. Run it on demand from the repo's **Actions** tab →
+*Recipe snapshot* → *Run workflow*. Because it commits to `main`, pull before
+pushing local changes. GitHub disables scheduled workflows after 60 days
+without repository activity; re-enable it from the Actions tab if that happens.
+
+### Troubleshooting: site hangs or says it can't reach the database
+
+Check the Supabase dashboard. If the project **Status** says *Unhealthy*
+(this happened once with *Auth: Unhealthy* on a Nano/free project), use
+**Project Settings → General → Restart project**. It comes back in a few
+minutes and no data is lost.
+
 ## Scaling
 
 Any visitor can change how many servings a recipe makes, and the ingredient
@@ -174,6 +211,10 @@ ingredients set it too, and all three stay in sync. The choice goes in the URL
   as thirds. A deliberate decimal like `0.4` keeps decimal output (`0.8`).
 - Units agree with the new amount: `1 cups` halved becomes `½ cup`,
   `1 dash` doubled becomes `2 dashes`.
+- Small amounts switch to spoons, the way you'd actually measure them. Below
+  half a cup, anything that isn't a plain ¼ or ⅓ cup becomes tablespoons and
+  teaspoons (`⅛ cup` → `2 tablespoons`, `1⁄12 cup` → `4 teaspoons`); fiddly
+  tablespoon amounts become teaspoons; under ⅛ teaspoon becomes a pinch.
 - Servings range from 1 to 100 (the shortcuts can go lower, e.g. ¼× of 2).
 - The method is **not** rescaled: its numbers are mixed in with times,
   temperatures and pan sizes. A note says so whenever the recipe is scaled.
