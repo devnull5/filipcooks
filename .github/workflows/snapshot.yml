@@ -1,5 +1,6 @@
 # Keeps data/recipes.json — the offline copy of the recipes — up to date.
-# See scripts/snapshot.py for what it does and why.
+# See scripts/snapshot.py (what it fetches) and scripts/publish_snapshot.sh
+# (how it commits safely when main moves during a run).
 
 name: Recipe snapshot
 
@@ -23,22 +24,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Fetch published recipes
-        run: python3 scripts/snapshot.py
-
-      - name: Commit if changed
+      - name: Refresh and publish snapshot
         env:
           GH_TOKEN: ${{ github.token }}
-        run: |
-          if git diff --quiet -- data/recipes.json; then
-            echo "Snapshot unchanged; nothing to commit."
-            exit 0
-          fi
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add data/recipes.json
-          git commit -m "Refresh recipe snapshot"
-          git push
-          # Pushes made with the workflow token may not trigger a Pages build
-          # on their own, so request one explicitly. Harmless if redundant.
-          gh api -X POST "repos/${{ github.repository }}/pages/builds" || echo "Pages build request failed; the next push will rebuild."
+        run: bash scripts/publish_snapshot.sh
