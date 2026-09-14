@@ -39,18 +39,25 @@ function parseNum(token) {
  * "0.33". Recover the fraction the cook meant so 0.3 x 2 shows as ⅔ rather
  * than 0.6. Only decimals are snapped, and only when they're very close to a
  * third, or essentially on an eighth — a deliberate "0.4" stays 0.4.
+ *
+ * Returns the value plus the style to display results in: kitchen fractions,
+ * or decimals when the author deliberately wrote a decimal.
  */
-function snapDecimal(token, value) {
-  if (!/^\d*\.\d{1,2}$/.test(token.trim())) return value;
+function readAmount(token) {
+  const value = parseNum(token);
+  const t = token.trim();
+  if (!/^\d*\.\d+$/.test(t)) return { value, style: 'fraction' };
+  if (!/^\d*\.\d{1,2}$/.test(t)) return { value, style: 'decimal' };
+
   const whole = Math.floor(value);
   const frac = value - whole;
   for (const third of [1 / 3, 2 / 3]) {
-    if (Math.abs(frac - third) <= 0.035) return whole + third;
+    if (Math.abs(frac - third) <= 0.035) return { value: whole + third, style: 'fraction' };
   }
-  for (let e = 1; e < 8; e++) {
-    if (Math.abs(frac - e / 8) <= 0.006) return whole + e / 8;
+  for (let e = 0; e <= 8; e++) {
+    if (Math.abs(frac - e / 8) <= 0.006) return { value: whole + e / 8, style: 'fraction' };
   }
-  return value;
+  return { value, style: 'decimal' };
 }
 
 const FRACTION_GLYPH = {
@@ -60,23 +67,50 @@ const FRACTION_GLYPH = {
 
 function gcd(a, b) { return b ? gcd(b, a % b) : a; }
 
-/** 0.75 -> "¾", 1.5 -> "1½", 1/12 -> "1⁄12", 1.4 -> "1.4". */
-export function formatQuantity(x) {
-  if (!Number.isFinite(x) || x <= 0) return '0';
-  for (const den of [1, 2, 3, 4, 8, 12, 16]) {
-    const total = Math.round(x * den);
-    if (Math.abs(x - total / den) > 0.004) continue;
-    const whole = Math.floor(total / den);
-    let num = total - whole * den;
-    if (num === 0) return String(whole);
-    const g = gcd(num, den);
-    num /= g;
-    const d = den / g;
-    const glyph = FRACTION_GLYPH[`${num}/${d}`] ?? `${num}⁄${d}`;
-    return whole ? `${whole}${glyph}` : glyph;
-  }
-  // Not a kitchen fraction: keep it honest rather than force a nearby one.
+function fractionText(total, den) {
+  const whole = Math.floor(total / den);
+  let num = total - whole * den;
+  if (num === 0) return String(whole);
+  const g = gcd(num, den);
+  num /= g;
+  const d = den / g;
+  const glyph = FRACTION_GLYPH[`${num}/${d}`] ?? `${num}⁄${d}`;
+  return whole ? `${whole}${glyph}` : glyph;
+}
+
+function decimalText(x) {
   return String(Math.round(x * 100) / 100);
+}
+
+/**
+ * 0.75 -> "¾", 1.5 -> "1½", 1/12 -> "1⁄12".
+ *
+ * With style "fraction", an exact kitchen fraction is used when there is one.
+ * Otherwise — which happens with free-form serving counts, e.g. ½ cup scaled
+ * from 8 to 9 servings is 9/16 — the amount is rounded to the nearest half,
+ * third, quarter or eighth, the way recipe sites do. Nobody can measure
+ * "0.56 cups", and a few percent either way doesn't change a dish. Only
+ * amounts too small for an eighth fall back to a decimal.
+ *
+ * With style "decimal" (the author wrote "0.4"), decimals are kept.
+ */
+export function formatQuantity(x, style = 'fraction') {
+  if (!Number.isFinite(x) || x <= 0) return '0';
+  if (style === 'decimal') return decimalText(x);
+
+  for (const den of [1, 2, 3, 4, 8, 12]) {
+    const total = Math.round(x * den);
+    if (Math.abs(x - total / den) <= 0.004) return fractionText(total, den);
+  }
+
+  let best = null;
+  for (const den of [2, 3, 4, 8]) {
+    const total = Math.round(x * den);
+    if (total === 0) continue;
+    const err = Math.abs(x - total / den);
+    if (!best || err < best.err) best = { total, den, err };
+  }
+  return best ? fractionText(best.total, best.den) : decimalText(x);
 }
 
 // Units whose grammatical number should follow the scaled amount
@@ -130,18 +164,18 @@ export function scaleIngredient(line, factor) {
   if (!m) return text;
 
   const [whole, lead, firstTok, sep, secondTok] = m;
-  const first = snapDecimal(firstTok, parseNum(firstTok));
-  if (!Number.isFinite(first)) return text;
+  const first = readAmount(firstTok);
+  if (!Number.isFinite(first.value)) return text;
 
-  let amount = first * factor;
-  let last = formatQuantity(amount);
+  let amount = first.value * factor;
+  let last = formatQuantity(amount, first.style);
   let quantity = last;
 
   if (secondTok) {
-    const second = snapDecimal(secondTok, parseNum(secondTok));
-    if (!Number.isFinite(second)) return text;
-    amount = second * factor;
-    last = formatQuantity(amount);
+    const second = readAmount(secondTok);
+    if (!Number.isFinite(second.value)) return text;
+    amount = second.value * factor;
+    last = formatQuantity(amount, first.style);
     quantity += sep + last;
   }
 

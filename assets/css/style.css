@@ -452,6 +452,48 @@ label { display: block; font-size: .85rem; font-weight: 600; color: var(--ink-so
   margin-bottom: 1.1rem;
 }
 
+/* Editable "Serves" box in the facts bar */
+.fact.fact-serves { flex-basis: 160px; }
+label.fact-label { margin-bottom: 0; }
+.stepper { display: inline-flex; align-items: center; gap: .3rem; margin-top: .2rem; }
+.stepper-btn {
+  width: 1.9rem;
+  height: 1.9rem;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-size: 1.1rem;
+  line-height: 1;
+  cursor: pointer;
+  transition: background .15s, border-color .15s, color .15s;
+}
+.stepper-btn:hover:not(:disabled) { background: var(--surface-alt); border-color: var(--ember); color: var(--ember); }
+.stepper-btn:disabled { opacity: .4; cursor: not-allowed; }
+/* Out-ranks the generic input[type="number"] rule, which would otherwise
+   stretch this to 100% width with a full form-field border. */
+.stepper input.stepper-input {
+  width: 3.4rem;
+  padding: .1rem .2rem;
+  text-align: center;
+  font-family: var(--serif);
+  font-size: 1.2rem;
+  font-weight: 600;
+  color: var(--ink);
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+.stepper input.stepper-input:focus { border-color: var(--ember); }
+.stepper input.stepper-input::-webkit-outer-spin-button,
+.stepper input.stepper-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+
 .ingredients-head {
   display: flex;
   align-items: flex-start;

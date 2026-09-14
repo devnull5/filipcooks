@@ -12,10 +12,10 @@ $('#year').textContent = new Date().getFullYear();
 const params = new URLSearchParams(location.search);
 const slug = params.get('r');
 
-// ?x=2 makes a scaled recipe shareable; anything unrecognised means 1x.
-let scaleFactor = SCALE_OPTIONS.some((o) => o.factor === Number(params.get('x')))
-  ? Number(params.get('x'))
-  : 1;
+// Current scale relative to the recipe as written. Set from the URL once the
+// recipe (and so its base serving count) has loaded.
+let scaleFactor = 1;
+const MAX_SERVINGS = 100;
 
 let recipe = null;
 let reviews = [];
@@ -71,10 +71,20 @@ function recipeHTML() {
       ? `<img class="hero-photo" src="${esc(recipe.hero_url)}" alt="${esc(recipe.title)}">`
       : ''}
 
-    ${facts.length ? `<div class="facts">${facts.map(([label, value, key]) => `
+    ${facts.length ? `<div class="facts">${facts.map(([label, value, key]) => key === 'serves' ? `
+      <div class="fact fact-serves">
+        <label class="fact-label" for="servings-input">${esc(label)}</label>
+        <div class="stepper">
+          <button type="button" class="stepper-btn" data-step="-1" aria-label="Fewer servings">−</button>
+          <input id="servings-input" class="stepper-input" type="number" inputmode="decimal"
+            min="1" max="${MAX_SERVINGS}" step="1" value="${esc(value)}"
+            aria-describedby="scale-note">
+          <button type="button" class="stepper-btn" data-step="1" aria-label="More servings">+</button>
+        </div>
+      </div>` : `
       <div class="fact">
         <div class="fact-label">${esc(label)}</div>
-        <div class="fact-value"${key ? ` data-fact="${key}"` : ''}>${esc(value)}</div>
+        <div class="fact-value">${esc(value)}</div>
       </div>`).join('')}</div>` : ''}
 
     <div class="recipe-columns">
@@ -331,18 +341,74 @@ async function load() {
 
   await loadReviews();
 
+  scaleFactor = initialScale();
   root.innerHTML = recipeHTML();
+  wireScaling();
   renderIngredients();
-  root.querySelectorAll('.scale-btn').forEach((btn) => {
-    btn.addEventListener('click', () => setScale(Number(btn.dataset.factor)));
-  });
   renderReviewForm();
   renderReviews();
 }
 
 // --- scaling ---------------------------------------------------------
+//
+// Visitors can type a serving count, step it with − / +, or use the ¼×–3×
+// shortcuts. All three set one scale factor relative to the recipe as
+// written, and the ingredient list follows it live.
 
-function renderIngredients() {
+/** The recipe's own serving count, or null if the author didn't give one. */
+function baseServings() {
+  const n = Number(recipe.servings);
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
+const sameFactor = (a, b) => Math.abs(a - b) < 1e-9;
+
+/** Restore a shared scale: ?s=12 (servings), or the older ?x=2 (multiplier). */
+function initialScale() {
+  const base = baseServings();
+  const s = Number(params.get('s'));
+  if (base && Number.isFinite(s) && s > 0 && s <= MAX_SERVINGS) return s / base;
+  const x = Number(params.get('x'));
+  if (SCALE_OPTIONS.some((o) => sameFactor(o.factor, x))) return x;
+  return 1;
+}
+
+function wireScaling() {
+  root.querySelectorAll('.scale-btn').forEach((btn) => {
+    btn.addEventListener('click', () => setScale(Number(btn.dataset.factor)));
+  });
+
+  const input = $('#servings-input');
+  const base = baseServings();
+  if (!input || !base) return;
+
+  // Update as they type, but only on a usable number — never fight the
+  // cursor by rewriting the box mid-edit.
+  input.addEventListener('input', () => {
+    const v = parseFloat(input.value);
+    if (Number.isFinite(v) && v > 0 && v <= MAX_SERVINGS) setScale(v / base, { fromInput: true });
+  });
+
+  // On blur / Enter, tidy up: clamp out-of-range values, restore empty ones.
+  input.addEventListener('change', () => {
+    const v = parseFloat(input.value);
+    if (!Number.isFinite(v) || v <= 0) return setScale(scaleFactor);
+    setScale(Math.min(MAX_SERVINGS, v) / base);
+  });
+
+  root.querySelectorAll('.stepper-btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const current = base * scaleFactor;
+      // Step to the next whole serving, so 1½ goes down to 1 and up to 2.
+      const next = Number(btn.dataset.step) > 0
+        ? Math.min(MAX_SERVINGS, Math.floor(current + 1e-9) + 1)
+        : Math.max(1, Math.ceil(current - 1e-9) - 1);
+      setScale(next / base);
+    });
+  });
+}
+
+function renderIngredients({ fromInput = false } = {}) {
   const list = $('#ingredient-list');
   if (!list) return;
 
@@ -351,29 +417,50 @@ function renderIngredients() {
     .join('');
 
   root.querySelectorAll('.scale-btn').forEach((btn) => {
-    btn.setAttribute('aria-pressed', String(Number(btn.dataset.factor) === scaleFactor));
+    btn.setAttribute('aria-pressed', String(sameFactor(Number(btn.dataset.factor), scaleFactor)));
   });
 
-  const serves = root.querySelector('[data-fact="serves"]');
-  if (serves && recipe.servings) serves.textContent = formatQuantity(recipe.servings * scaleFactor);
+  const base = baseServings();
+  const servings = base ? base * scaleFactor : null;
+
+  const input = $('#servings-input');
+  if (input && servings != null) {
+    if (!fromInput) input.value = String(Math.round(servings * 100) / 100);
+    const [minus, plus] = root.querySelectorAll('.stepper-btn');
+    minus.disabled = servings <= 1;
+    plus.disabled = servings >= MAX_SERVINGS;
+  }
 
   // The method is prose ("add 3 cups stock, divided"), and rewriting numbers
   // inside sentences would also hit temperatures, times and pan sizes. So
   // it stays as written, and the reader is told so.
   const note = $('#scale-note');
-  const option = SCALE_OPTIONS.find((o) => o.factor === scaleFactor);
-  note.hidden = scaleFactor === 1;
-  if (scaleFactor !== 1) {
-    note.textContent = `Ingredients shown at ${option.label}. Amounts mentioned in the method are for the original recipe.`;
+  const scaled = !sameFactor(scaleFactor, 1);
+  note.hidden = !scaled;
+  if (!scaled) return;
+  if (servings != null) {
+    const n = formatQuantity(servings);
+    note.textContent = `Ingredients adjusted for ${n} serving${n === '1' ? '' : 's'} ` +
+      `(the recipe makes ${base}). Amounts mentioned in the method are for the original recipe.`;
+  } else {
+    const option = SCALE_OPTIONS.find((o) => sameFactor(o.factor, scaleFactor));
+    note.textContent = `Ingredients shown at ${option ? option.label : `${formatQuantity(scaleFactor)}×`}. ` +
+      'Amounts mentioned in the method are for the original recipe.';
   }
 }
 
-function setScale(factor) {
+function setScale(factor, { fromInput = false } = {}) {
   scaleFactor = factor;
-  renderIngredients();
+  renderIngredients({ fromInput });
+
   const url = new URL(location.href);
-  if (factor === 1) url.searchParams.delete('x');
-  else url.searchParams.set('x', String(factor));
+  url.searchParams.delete('x');
+  url.searchParams.delete('s');
+  if (!sameFactor(factor, 1)) {
+    const base = baseServings();
+    if (base) url.searchParams.set('s', String(Math.round(base * factor * 100) / 100));
+    else url.searchParams.set('x', String(factor));
+  }
   history.replaceState(null, '', url);
 }
 

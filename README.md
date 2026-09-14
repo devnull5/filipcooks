@@ -156,22 +156,28 @@ redirect URLs (step 2 above) if you want Google sign-in to work locally.
 
 ## Scaling
 
-Recipe pages have a ¼× / ½× / 1× / 2× / 3× control above the ingredients. It
-rewrites the amount at the **start** of each ingredient line and the "Serves"
-figure, and records the choice in the URL (`&x=2`) so a scaled recipe can be
-shared.
+Any visitor can change how many servings a recipe makes, and the ingredient
+list follows along live. The "Serves" box on a recipe page is editable: type a
+number, or step it with − / +. The ¼× / ½× / 1× / 2× / 3× shortcuts above the
+ingredients set it too, and all three stay in sync. The choice goes in the URL
+(`&s=12`) so a scaled recipe can be shared; older `&x=2` links still work.
 
+- Only the amount at the **start** of each ingredient line changes. Numbers
+  later in a line are never touched — `(for 9x12 pan)` stays put — and at the
+  original serving count every line is shown exactly as written.
 - Understands `2`, `0.5`, `1/2`, `1 1/2`, `1½`, `½`, and ranges like `2-3` or
-  `2 to 3`. Output uses kitchen fractions (`¾`, `1⅓`), falling back to a
-  decimal when the result isn't a sensible fraction.
-- Decimals that look like rounded thirds (`0.3`, `0.33`, `0.67`) are treated as
-  thirds, so `0.3 cups` doubled reads `⅔ cup`, not `0.6 cups`.
+  `2 to 3`.
+- Results are shown as kitchen fractions. Odd serving counts produce
+  unmeasurable exact amounts (½ cup for 9 of 8 servings is 9/16), so those
+  round to the nearest half, third, quarter or eighth, the way recipe sites do.
+- Decimals that look like rounded thirds (`0.3`, `0.33`, `0.67`) are treated
+  as thirds. A deliberate decimal like `0.4` keeps decimal output (`0.8`).
 - Units agree with the new amount: `1 cups` halved becomes `½ cup`,
   `1 dash` doubled becomes `2 dashes`.
-- Numbers later in a line are never touched — `(for 9x12 pan)` stays put — and
-  at 1× every line is shown exactly as written.
+- Servings range from 1 to 100 (the shortcuts can go lower, e.g. ¼× of 2).
 - The method is **not** rescaled: its numbers are mixed in with times,
   temperatures and pan sizes. A note says so whenever the recipe is scaled.
+- Recipes without a "Serves" number get the shortcuts only.
 
 ## Posting a recipe
 
