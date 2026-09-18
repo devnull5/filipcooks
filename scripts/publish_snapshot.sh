@@ -32,14 +32,16 @@ for attempt in $(seq 1 "$ATTEMPTS"); do
   git reset --quiet --hard "$REMOTE/$BRANCH"
 
   "$PYTHON" scripts/snapshot.py
+  "$PYTHON" scripts/build_pages.py
 
-  if git diff --quiet -- data/recipes.json; then
-    echo "Snapshot unchanged; nothing to commit."
+  # status, not diff: a new recipe's page is an untracked file, which diff ignores.
+  if [ -z "$(git status --porcelain -- data recipes sitemap.xml)" ]; then
+    echo "Snapshot and pages unchanged; nothing to commit."
     exit 0
   fi
 
-  git add data/recipes.json
-  git commit --quiet -m "Refresh recipe snapshot"
+  git add -A -- data recipes sitemap.xml
+  git commit --quiet -m "Refresh recipe snapshot and pages"
 
   if git push --quiet "$REMOTE" "HEAD:$BRANCH"; then
     echo "Snapshot pushed on attempt $attempt."

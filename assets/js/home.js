@@ -54,7 +54,7 @@ function cardHTML(recipe) {
 
   return `
     <article class="card">
-      <a class="card-link" href="recipe.html?r=${encodeURIComponent(recipe.slug)}">
+      <a class="card-link" href="/recipes/${encodeURIComponent(recipe.slug)}/">
         ${photo}
         <div class="card-body">
           ${badges.length ? `<div class="card-badges">${badges.join('')}</div>` : ''}

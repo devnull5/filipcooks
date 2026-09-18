@@ -73,7 +73,7 @@ function shell() {
           <div class="field">
             <label for="f-slug">URL slug</label>
             <input type="text" id="f-slug" placeholder="sunday-ragu">
-            <div class="field-hint">filipcooks.com/recipe.html?r=<span id="slug-echo">…</span></div>
+            <div class="field-hint">filipcooks.com/recipes/<span id="slug-echo">…</span>/</div>
           </div>
         </div>
 

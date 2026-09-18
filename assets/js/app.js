@@ -307,7 +307,7 @@ export async function renderHeader() {
   // The admin page already links to itself in its nav; don't say it twice.
   if (profile.is_admin && !location.pathname.endsWith('admin.html')) {
     const link = el('a', 'btn btn-ghost btn-sm', 'Admin');
-    link.href = 'admin.html';
+    link.href = '/admin.html';
     wrap.appendChild(link);
   }
 

@@ -105,7 +105,7 @@ export function rememberRecipes(recipes, { replaceAll = false } = {}) {
 
 let snapshotPromise = null;
 function readSnapshot() {
-  snapshotPromise ??= fetch('data/recipes.json', { cache: 'no-cache' })
+  snapshotPromise ??= fetch('/data/recipes.json', { cache: 'no-cache' })
     .then((res) => (res.ok ? res.json() : null))
     .then((json) => (json && Array.isArray(json.recipes) && json.generated_at ? json : null))
     .catch(() => null);

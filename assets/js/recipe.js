@@ -14,7 +14,9 @@ const root = $('#recipe-root');
 $('#year').textContent = new Date().getFullYear();
 
 const params = new URLSearchParams(location.search);
-const slug = params.get('r');
+// recipe.html?r=<slug>, or a pre-built /recipes/<slug>/ page (scripts/build_pages.py).
+const slug = params.get('r') || root?.dataset.slug || null;
+const prerendered = root?.hasAttribute('data-prerendered');
 
 // Current scale relative to the recipe as written. Set from the URL once the
 // recipe (and so its base serving count) has loaded.
@@ -38,8 +40,18 @@ function notFound(message) {
       <div class="empty-icon">🤷</div>
       <h3>Recipe not found</h3>
       <p>${esc(message || "That recipe either doesn't exist or isn't published yet.")}</p>
-      <p><a href="index.html">← Back to all recipes</a></p>
+      <p><a href="/">← Back to all recipes</a></p>
     </div>`;
+}
+
+/** Steps are often typed as "1. Do this"; the list numbers them already. */
+function stripStepNumber(text) {
+  return String(text).replace(/^\s*\d+\s*[.)]\s+/, '');
+}
+
+/** Same format as the pre-built pages, so the tab title doesn't change. */
+function pageTitle(title) {
+  return `${title}${/recipe\s*$/i.test(title) ? '' : ' Recipe'} | Filip Cooks`;
 }
 
 function asList(value) {
@@ -113,7 +125,7 @@ function recipeHTML() {
       <div>
         <h2 class="section-title">Method</h2>
         ${steps.length
-          ? `<ol class="steps">${steps.map((s) => `<li>${esc(s)}</li>`).join('')}</ol>`
+          ? `<ol class="steps">${steps.map((s, i) => `<li id="step-${i + 1}">${esc(stripStepNumber(s))}</li>`).join('')}</ol>`
           : '<p class="muted">No steps listed.</p>'}
       </div>
     </div>
@@ -124,7 +136,7 @@ function recipeHTML() {
       <div id="review-list" class="review-list"></div>
     </section>
 
-    <a class="back-link" href="index.html">← All recipes</a>`;
+    <a class="back-link" href="/">← All recipes</a>`;
 }
 
 /** The star picker + comment box, or a sign-in nudge. */
@@ -363,7 +375,7 @@ function showRecipe(data, meta) {
   const firstRender = !recipe;
   recipe = data;
   currentSource = meta.source;
-  document.title = `${recipe.title} — Filip Cooks`;
+  document.title = pageTitle(recipe.title);
   if (meta.source === 'live') rememberRecipes([recipe]);
   setOfflineBanner(meta);
 
@@ -387,7 +399,8 @@ async function load() {
   if (!slug) return notFound('No recipe was specified.');
 
   renderHeader();
-  root.innerHTML = '<p class="muted" style="padding:4rem 0">Loading…</p>';
+  // A pre-built page already shows the recipe; don't blank it while live data loads.
+  if (!prerendered) root.innerHTML = '<p class="muted" style="padding:4rem 0">Loading…</p>';
 
   // Start the sign-in check now, but never let it hold up the recipe — and
   // don't make the review area wait on a slow database either.

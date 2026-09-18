@@ -6,6 +6,14 @@
   <title>Not found — Filip Cooks</title>
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🍳</text></svg>">
   <link rel="stylesheet" href="/assets/css/style.css">
+  <script>
+    // A new recipe's /recipes/<slug>/ page is built by the hourly snapshot job.
+    // Until then, hand it to the page that renders any recipe from the database.
+    (function () {
+      var m = location.pathname.match(/^\/recipes\/([a-z0-9]+(?:-[a-z0-9]+)*)\/?$/);
+      if (m) location.replace('/recipe.html?r=' + m[1] + location.search.replace(/^\?/, '&') + location.hash);
+    })();
+  </script>
 </head>
 <body>
   <header class="site-header">
