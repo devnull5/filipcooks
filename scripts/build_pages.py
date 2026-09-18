@@ -52,6 +52,24 @@ def clean_step(text: str) -> str:
     return STEP_NUMBER.sub("", str(text)).strip()
 
 
+STEP_TITLE = re.compile(r"^([^:.!?\n]{3,60}):\s+(\S.*)$", re.S)
+
+
+def step_parts(text: str) -> tuple[str | None, str]:
+    """Steps written "Brown the chicken: In a large skillet…" carry their own
+    short name, which Google shows as the step heading. Anything else has none."""
+    m = STEP_TITLE.match(text)
+    return (m.group(1).strip(), m.group(2).strip()) if m else (None, text)
+
+
+def how_to_step(text: str, url: str) -> dict:
+    name, body = step_parts(clean_step(text))
+    step = {"@type": "HowToStep", "text": body, "url": url}
+    if name:
+        step = {"@type": "HowToStep", "name": name, "text": body, "url": url}
+    return step
+
+
 def as_list(value) -> list[str]:
     return [str(x).strip() for x in (value or []) if str(x).strip()]
 
@@ -113,7 +131,7 @@ def structured_data(r: dict, url: str) -> dict:
         "totalTime": iso_duration(total),
         "recipeIngredient": as_list(r.get("ingredients")),
         "recipeInstructions": [
-            {"@type": "HowToStep", "text": clean_step(s), "url": f"{url}#step-{i}"}
+            how_to_step(s, f"{url}#step-{i}")
             for i, s in enumerate(as_list(r.get("steps")), start=1)
         ],
     }
