@@ -17,4 +17,10 @@ window.FILIPCOOKS_CONFIG = {
   // Must also be listed under Supabase → Auth → Providers → Google → Client IDs.
   // The client *secret* never goes here.
   GOOGLE_CLIENT_ID: '560087932543-j62865rhlf6b3roe0vq0k6h08a16u8t1.apps.googleusercontent.com',
+
+  // Google AdSense (public IDs). The one ad on recipe pages only appears once
+  // ADSENSE_SLOT is set, which needs an ad unit created after AdSense approves
+  // the site. ADSENSE_CLIENT must match scripts/build_pages.py and ads.txt.
+  ADSENSE_CLIENT: 'ca-pub-4108944496579681',
+  ADSENSE_SLOT: '',
 };

@@ -28,6 +28,7 @@ import shutil
 from pathlib import Path
 
 SITE = "https://filipcooks.com"
+ADSENSE_CLIENT = "ca-pub-4108944496579681"  # keep in sync with assets/js/config.js
 AUTHOR = "Filip"
 ROOT = Path(__file__).resolve().parent.parent
 SNAPSHOT = ROOT / "data" / "recipes.json"
@@ -239,6 +240,8 @@ def page_html(r: dict) -> str:
   <meta name="twitter:description" content="{esc(desc)}">
   <link rel="icon" href="{FAVICON}">
   <link rel="stylesheet" href="/assets/css/style.css">
+  <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client={ADSENSE_CLIENT}"
+     crossorigin="anonymous"></script>
   <script type="application/ld+json">
 {json_ld(structured_data(r, url))}
   </script>

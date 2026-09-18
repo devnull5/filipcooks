@@ -44,6 +44,37 @@ function notFound(message) {
     </div>`;
 }
 
+// --- the one ad ------------------------------------------------------
+//
+// A single AdSense unit after the method, before the reviews: out of the way
+// while someone is cooking. Renders nothing until ADSENSE_SLOT is set in
+// config.js, which needs an ad unit created after AdSense approves the site.
+
+const adConfig = window.FILIPCOOKS_CONFIG || {};
+
+function adSlotHTML() {
+  if (!adConfig.ADSENSE_CLIENT || !adConfig.ADSENSE_SLOT) return '';
+  return `
+    <aside class="ad-slot" aria-label="Advertisement">
+      <div class="ad-label">Advertisement</div>
+      <ins class="adsbygoogle" style="display:block"
+        data-ad-client="${esc(adConfig.ADSENSE_CLIENT)}"
+        data-ad-slot="${esc(adConfig.ADSENSE_SLOT)}"
+        data-ad-format="auto" data-full-width-responsive="true"></ins>
+    </aside>`;
+}
+
+/** Ask AdSense to fill the slot — once per slot element. */
+function fillAdSlot() {
+  const ins = root.querySelector('ins.adsbygoogle');
+  if (!ins || ins.dataset.adsbygoogleStatus) return;
+  try {
+    (window.adsbygoogle = window.adsbygoogle || []).push({});
+  } catch (error) {
+    console.warn('ad slot', error); // an ad failing must never break the recipe
+  }
+}
+
 /** Steps are often typed as "1. Do this"; the list numbers them already. */
 function stripStepNumber(text) {
   return String(text).replace(/^\s*\d+\s*[.)]\s+/, '');
@@ -129,6 +160,8 @@ function recipeHTML() {
           : '<p class="muted">No steps listed.</p>'}
       </div>
     </div>
+
+    ${adSlotHTML()}
 
     <section class="reviews-section">
       <h2 class="section-title">Reviews</h2>
@@ -385,6 +418,7 @@ function showRecipe(data, meta) {
   renderIngredients();
   renderReviewForm();
   renderReviews();
+  fillAdSlot();
 
   loadReviews().then(() => {
     renderReviews(); // works out which review is yours first

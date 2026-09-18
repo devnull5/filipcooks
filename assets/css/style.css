@@ -577,6 +577,24 @@ label.fact-label { margin-bottom: 0; }
   font-size: .95rem;
 }
 
+/* --- the one ad ------------------------------------------------------- */
+
+.ad-slot {
+  margin: 3.5rem 0 0;
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--border);
+}
+.ad-label {
+  font-size: .7rem;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  margin-bottom: .5rem;
+}
+/* AdSense collapses unfilled slots; hide the label with it rather than leave
+   a lonely "Advertisement" over nothing. */
+.ad-slot:has(ins[data-ad-status="unfilled"]) { display: none; }
+
 /* --- reviews --------------------------------------------------------- */
 
 .reviews-section { margin-top: 4rem; padding-top: 2.5rem; border-top: 1px solid var(--border); }
