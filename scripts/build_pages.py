@@ -212,7 +212,64 @@ def body_html(r: dict) -> str:
     return "\n".join(p for p in parts if p)
 
 
-def page_html(r: dict) -> str:
+def related(r: dict, all_recipes: list[dict], limit: int = 3) -> list[dict]:
+    """Up to `limit` other recipes: the ones that follow this one, wrapping.
+
+    Straight rotation rather than same-category-first. Sorting by category
+    starves whatever is in a category of its own — the one dessert ended up
+    linked from nowhere — and every recipe needs a way in. Rotating gives each
+    one exactly `limit` inbound links.
+    """
+    slugs = [x["slug"] for x in all_recipes]
+    if r["slug"] not in slugs:
+        return list(all_recipes)[:limit]
+    i = slugs.index(r["slug"])
+    return (list(all_recipes[i + 1:]) + list(all_recipes[:i]))[:limit]
+
+
+def related_html(r: dict, all_recipes: list[dict]) -> str:
+    """Links from every recipe to a few others.
+
+    Two reasons: a reader who liked this one has somewhere to go next, and a
+    crawler that lands on any single page can reach the rest of the site
+    without going back through the JavaScript-rendered home page.
+    """
+    picks = related(r, all_recipes)
+    if not picks:
+        return ""
+
+    cards = []
+    for p in picks:
+        if p.get("hero_url"):
+            photo = (f'<img class="card-photo" src="{esc(p["hero_url"])}" '
+                     f'alt="{esc(p["title"])}" loading="lazy">')
+        else:
+            photo = '<div class="card-photo-empty" aria-hidden="true">🍽️</div>'
+        blurb = f'<p class="card-blurb">{esc(p["blurb"])}</p>' if p.get("blurb") else ""
+        cards.append(
+            f'        <article class="card">\n'
+            f'          <a class="card-link" href="/recipes/{esc(p["slug"])}/">\n'
+            f'            {photo}\n'
+            f'            <div class="card-body">\n'
+            f'              <h3 class="card-title">{esc(p["title"])}</h3>\n'
+            f'              {blurb}\n'
+            f'            </div>\n'
+            f'          </a>\n'
+            f'        </article>'
+        )
+
+    return (
+        '\n  <section class="wrap-narrow related-recipes">\n'
+        '    <h2 class="section-title">More recipes</h2>\n'
+        '    <div class="recipe-grid related-grid">\n'
+        + "\n".join(cards) + "\n"
+        '    </div>\n'
+        '    <a class="back-link" href="/">← All recipes</a>\n'
+        '  </section>\n'
+    )
+
+
+def page_html(r: dict, all_recipes: list[dict] = ()) -> str:
     url = f"{SITE}/recipes/{r['slug']}/"
     title = page_title(r["title"])
     desc = meta_description(r)
@@ -264,11 +321,11 @@ def page_html(r: dict) -> str:
   <main class="wrap-narrow" id="recipe-root" data-slug="{esc(r['slug'])}" data-prerendered>
 {body_html(r)}
   </main>
-
+{related_html(r, all_recipes)}
   <footer class="site-footer">
     <div class="wrap">
       <span>© <span id="year"></span> Filip Cooks</span>
-      <span><a href="/privacy.html">Privacy</a> · <a href="/terms.html">Terms</a> · Built with Supabase</span>
+      <span><a href="/about.html">About</a> · <a href="/privacy.html">Privacy</a> · <a href="/terms.html">Terms</a> · Built with Supabase</span>
     </div>
   </footer>
 
@@ -290,6 +347,7 @@ def sitemap_xml(recipes: list[dict]) -> str:
              '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',
              entry(f"{SITE}/", newest)]
     lines += [entry(f"{SITE}/recipes/{r['slug']}/", (r.get("updated_at") or "")[:10]) for r in recipes]
+    lines.append(entry(f"{SITE}/about.html", None))
     lines.append("</urlset>")
     return "\n".join(lines) + "\n"
 
@@ -315,7 +373,7 @@ def main() -> int:
     for r in usable:
         folder = PAGES / r["slug"]
         folder.mkdir(parents=True, exist_ok=True)
-        (folder / "index.html").write_text(page_html(r), encoding="utf-8", newline="\n")
+        (folder / "index.html").write_text(page_html(r, usable), encoding="utf-8", newline="\n")
 
     SITEMAP.write_text(sitemap_xml(usable), encoding="utf-8", newline="\n")
     print(f"Built {len(usable)} recipe page(s) and sitemap.xml.")

@@ -770,3 +770,19 @@ label.fact-label { margin-bottom: 0; }
 .muted { color: var(--ink-soft); }
 .back-link { display: inline-block; margin-top: 1.75rem; font-size: .9rem; }
 .stack-sm > * + * { margin-top: .6rem; }
+
+/* --- related recipes (generated recipe pages) ------------------------- */
+
+.related-recipes {
+  margin-top: 3.25rem;
+  padding-top: 2.25rem;
+  border-top: 1px solid var(--border);
+}
+.related-recipes .section-title { margin-bottom: 1.1rem; }
+/* Narrower than the home grid: this sits in the 760px reading column. */
+.related-grid { grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 1.1rem; }
+.related-grid .card-body { padding: .85rem .95rem 1rem; }
+.related-grid .card-title { font-size: 1.05rem; }
+/* The "All recipes" link belongs at the very bottom, so drop the one the
+   recipe itself renders when this section follows it. */
+body:has(.related-recipes) #recipe-root .back-link { display: none; }
