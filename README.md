@@ -30,7 +30,56 @@ supabase/01-fix-column-grants.sql  security patch for instances set up before 20
 supabase/schema.sql   tables, triggers, RLS, storage (the schema on its own)
 supabase/00-reset-stale-recipes.sql  only if a foreign `recipes` table is in the way
 supabase/make-me-admin.sql   flips your own is_admin flag
+supabase/02-filipstudies.sql  filipstudies tables + admin-only RLS
+studies.html          filipstudies: take practice tests (admin only)
+studies-admin.html    filipstudies: add classes, load tests from JSON (admin only)
+assets/js/studies.js        studies.html behaviour
+assets/js/studies-admin.js  studies-admin.html behaviour
+scripts/check_studies_private.py  proves filipstudies isn't readable with the public key
 ```
+
+## filipstudies
+
+A private study section at `/studies.html`: classes, practice tests inside
+them, and a score for every attempt. Nothing about it is public.
+
+Privacy is enforced in Postgres, not in the page. This site is static and
+ships a publishable key, so the browser gate in `studies.js` is only a
+convenience — `supabase/02-filipstudies.sql` is what actually keeps the
+section shut, with admin-only RLS on all four tables plus every grant
+revoked from `anon`. To check that it's still true:
+
+```bash
+python scripts/check_studies_private.py
+```
+
+Tests load from JSON rather than a form, because they're meant to be
+generated. Paste this into **Load a test from JSON** on
+`/studies-admin.html`:
+
+```json
+{
+  "title": "Unit 1 — Cell Structure",
+  "intro": "Organelles and what they do.",
+  "questions": [
+    {
+      "prompt": "Which organelle produces most of a cell's ATP?",
+      "choices": ["Ribosome", "Mitochondrion", "Golgi body", "Nucleus"],
+      "answer": 1,
+      "explanation": "Oxidative phosphorylation happens on the inner membrane."
+    },
+    {
+      "prompt": "Define osmosis in one sentence.",
+      "kind": "written",
+      "answer_text": "Net movement of water across a semipermeable membrane down its water-potential gradient."
+    }
+  ]
+}
+```
+
+`answer` can be the index (`1`), the letter (`"B"`), or the exact text of
+the right choice. Every question is validated before anything is written,
+so a bad paste imports nothing rather than half a test.
 
 ## How the data works
 
