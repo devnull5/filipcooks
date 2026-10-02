@@ -8,3 +8,7 @@ Thumbs.db
 # (assets/js/config.js holds only the public anon key and IS committed.)
 .env
 .env.*
+
+# Study material derived from copyrighted coursework. Stays local: the repo
+# is public and filipstudies is private.
+study-content/
