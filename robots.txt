@@ -1,4 +1,6 @@
 User-agent: *
 Disallow: /admin.html
+Disallow: /studies.html
+Disallow: /studies-admin.html
 
 Sitemap: https://filipcooks.com/sitemap.xml

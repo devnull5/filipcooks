@@ -305,10 +305,21 @@ export async function renderHeader() {
   wrap.appendChild(el('span', 'user-name', profile.display_name || 'You'));
 
   // The admin page already links to itself in its nav; don't say it twice.
-  if (profile.is_admin && !location.pathname.endsWith('admin.html')) {
-    const link = el('a', 'btn btn-ghost btn-sm', 'Admin');
-    link.href = '/admin.html';
-    wrap.appendChild(link);
+  // Same for the filipstudies pages, which carry their own nav link.
+  if (profile.is_admin) {
+    const here = location.pathname;
+    // Basename, not endsWith: "studies-admin.html" also ends in "admin.html".
+    const page = here.slice(here.lastIndexOf('/') + 1);
+    if (page !== 'admin.html') {
+      const link = el('a', 'btn btn-ghost btn-sm', 'Admin');
+      link.href = '/admin.html';
+      wrap.appendChild(link);
+    }
+    if (!page.startsWith('studies')) {
+      const link = el('a', 'btn btn-ghost btn-sm', 'filipstudies');
+      link.href = '/studies.html';
+      wrap.appendChild(link);
+    }
   }
 
   const out = el('button', 'btn btn-ghost btn-sm', 'Sign out');
